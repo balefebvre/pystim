@@ -7,56 +7,6 @@ from PIL.Image import open as open_image
 from urllib.request import urlopen
 
 
-def find_reference_image_paths(path):
-
-    assert os.path.isdir(path)
-
-    paths = [
-        os.path.join(path, filename)
-        for filename in os.listdir(path)
-    ]
-
-    return paths
-
-
-def load_reference_image(path):
-
-    # TODO check path (or url).
-
-    mode = 'LA'  # 8-bit grayscale, 8-bit alpha
-    data = imread(path, mode=mode)  # TODO
-
-    image = {
-        'path': path,
-        'data': data.shape,
-    }
-
-    return image
-
-
-def load_reference_image_bis(index, format_='iml'):
-
-    assert 0 <= index <= 4212
-    assert format_ in ['iml', 'i']
-
-    url = None
-    print(url)
-    image = None
-
-    return image
-
-
-# def collect_reference_images(paths):
-#
-#     # Load all the images in this directory.
-#     images = [
-#         load_reference_image(path)
-#         for path in paths
-#     ]
-#
-#     return images
-
-
 def load_resource(url):
 
     with urlopen(url) as handle:
@@ -69,7 +19,7 @@ def get_palmer_resource_locator(index):
 
     assert 1 <= index <= 6
 
-    frame_index =  1200 * (index - 1) + 600
+    frame_index = 1200 * (index - 1) + 600
     filename = "frame{i:04d}.png".format(i=frame_index)
     path = os.path.join("~", "spot_sensitivity_context_dependent", filename)
     path = os.path.expanduser(path)
