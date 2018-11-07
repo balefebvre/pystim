@@ -8,6 +8,7 @@ install_requires = [
     'matplotlib',
     'numpy',
     'Pillow',
+    'scipy',
 ]
 entry_points = {
     'console_scripts': [

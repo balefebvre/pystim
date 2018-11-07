@@ -1,7 +1,10 @@
 import array
 import io
+import matplotlib.pyplot as plt
 import numpy as np
 import os
+import scipy
+import scipy.interpolate
 
 from PIL.Image import open as open_image
 from urllib.request import urlopen
@@ -106,13 +109,14 @@ def generate(args):
 
     _ = args  # TODO remove.
 
-    dataset = 'van Hateren'
+    # dataset = 'Palmer'
+    dataset = 'van Hateren'  # TODO cache the van Hateren's natural images.
 
     # TODO collect the reference images (i.e. natural images).
     if dataset == 'Palmer':
-        urls = get_palmer_resource_locators(indices=[1, 4])
+        urls = get_palmer_resource_locators(indices=[1])
     elif dataset == 'van Hateren':
-        urls = get_van_hateren_resource_locators(indices=[1, 2, 3])
+        urls = get_van_hateren_resource_locators(indices=[1])
     else:
         raise ValueError("unexpected dataset value: {}".format(dataset))
     # Print resource locators.
@@ -137,10 +141,25 @@ def generate(args):
     else:
         raise ValueError("unexpected dataset value: {}".format(dataset))
     # Plot images.
-    import matplotlib.pyplot as plt
     for image in images:
+        plt.figure()
         plt.imshow(image, cmap='gray')
-        plt.show()
+
+    image = images[0]
+    x = np.linspace(0.0, 1.0, num=300)
+    y = np.linspace(0.0, 1.0, num=300)
+    z = image
+    spline = scipy.interpolate.RectBivariateSpline(x, y, z, bbox=(0.0, 1.0, 0.0, 1.0))
+    x_ = np.linspace(0.0, 1.0, num=1080)
+    y_ = np.linspace(0.0, 1.0, num=1920)
+    z_ = spline(x_, y_)
+    image = z_
+
+    plt.figure()
+    plt.imshow(image, cmap='gray')
+
+    plt.show()
+
     # TODO create the image perturbations (i.e. the checkerboards).
     # TODO create the perturbed images.
     # TODO create the grey image.
