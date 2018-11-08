@@ -17,8 +17,10 @@ class BinFile:
         self._nb_images = nb_images
 
         self._file = open(self._path, mode='w+b',)
-        self._dmd_width = 1080
-        self._dmd_height = 1920
+        # self._dmd_height = 1080
+        # self._dmd_width = 1920
+        self._dmd_width = 500
+        self._dmd_height = 500
         self._nb_bits = 8
 
         self._write_header()
@@ -31,7 +33,7 @@ class BinFile:
             self._nb_images,
             self._nb_bits,
         ]
-        header_array = np.array(header_list, dtype=np.uint16)
+        header_array = np.array(header_list, dtype=np.int16)
         header_bytes = header_array.tobytes()
         self._file.write(header_bytes)
 

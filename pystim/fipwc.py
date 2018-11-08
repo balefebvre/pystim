@@ -182,7 +182,8 @@ def generate(args):
     # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
     image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
 
-    frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -479,7 +480,8 @@ def get_frame(image):
     # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
     image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
 
-    frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -545,13 +547,15 @@ def get_reference_frame(reference_image):
     i_min, i_max, j_min, j_max = limits
 
     mean_luminance = 0.5  # arb. unit
-    std_luminance = 0.06  # arb. unit
+    # std_luminance = 0.06  # arb. unit
+    std_luminance = 0.5  # arb. unit
 
     frame_roi = frame[i_min:i_max, j_min:j_max]
     frame_roi = frame_roi - np.mean(frame_roi)
     frame_roi = frame_roi / np.std(frame_roi)
     frame_roi = frame_roi * std_luminance
     frame_roi = frame_roi + mean_luminance
+    print(np.std(frame_roi))
     frame[i_min:i_max, j_min:j_max] = frame_roi
 
     return frame
@@ -559,7 +563,8 @@ def get_reference_frame(reference_image):
 
 def get_perturbation_frame(perturbation_image):
 
-    frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -657,8 +662,10 @@ def save_frame(path, frame):
 
 def get_grey_frame(luminance=0.5):
 
-    height = 1080  # DMD height
-    width = 1920  # DMD width
+    # height = 1080  # DMD height
+    # width = 1920  # DMD width
+    height = 500  # DMD height
+    width = 500  # DMD width
     shape = (height, width)
     dtype = np.float
     frame = luminance * np.ones(shape, dtype=dtype)
@@ -717,6 +724,7 @@ def generate(args):
     grey_frame = get_grey_frame()
     grey_frame = float_frame_to_uint8_frame(grey_frame)
     # Save frame in .bin file.
+    print(grey_frame.shape)
     bin_file.append(grey_frame)
     # Save frame as .png file.
     grey_frame_filename = "grey.png"
@@ -728,6 +736,7 @@ def generate(args):
         reference_frame = get_reference_frame(reference_image)
         reference_frame = float_frame_to_uint8_frame(reference_frame)
         # Save frame in .bin file.
+        print(reference_frame.shape)
         bin_file.append(reference_frame)
         # Save frame as .png file.
         reference_frame_filename = "reference{:05d}.png".format(reference_image_index)
@@ -742,6 +751,7 @@ def generate(args):
                 perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude)
                 perturbed_frame = float_frame_to_uint8_frame(perturbed_frame)
                 # Save frame in .bin file.
+                print(perturbed_frame.shape)
                 bin_file.append(perturbed_frame)
                 # Save frame as .png file.
                 perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}_a{:05d}.png".format(reference_image_index, perturbation_pattern_index, perturbation_amplitude_index)
@@ -752,8 +762,9 @@ def generate(args):
     combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
 
     # display_rate = 50.0  # Hz
-    display_rate = 20.0  # Hz
-    frame_duration = 0.3  # s
+    display_rate = 60.0  # Hz
+    # frame_duration = 0.3  # s
+    frame_duration = 10.0  # s
 
     nb_repetitions = 1
     nb_combinations = len(combinations)
@@ -765,14 +776,14 @@ def generate(args):
     vec_filename = "fipwc.vec"
     vec_path = os.path.join(path, vec_filename)
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
-    grey_frame_id = 1
+    grey_frame_id = 0
     for k in range(0, nb_frame_displays):
         vec_file.append(grey_frame_id)
     for k in range(0, nb_repetitions):
         combination_indices = np.array(list(combinations.keys()))
         np.random.shuffle(combination_indices)
         for combination_index in combination_indices:
-            combination_frame_id = combination_index + 1
+            combination_frame_id = combination_index
             for k in range(0, nb_frame_displays):
                 vec_file.append(combination_frame_id)
             for k in range(0, nb_frame_displays):
