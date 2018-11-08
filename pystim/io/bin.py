@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 
 def open_file(path, nb_images):
@@ -8,7 +9,7 @@ def open_file(path, nb_images):
     return file
 
 
-class BinFile():
+class BinFile:
 
     def __init__(self, path, nb_images):
 
@@ -42,13 +43,12 @@ class BinFile():
 
         frame_bytes = frame.tobytes()
         self._file.write(frame_bytes)
-        self._file.flush()
 
         return
 
     def close(self):
 
-        self._file.flush()
+        os.fsync(self._file.fileno())  # force write
         self._file.close()
 
         return

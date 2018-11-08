@@ -655,6 +655,17 @@ def save_frame(path, frame):
     return
 
 
+def get_grey_frame(luminance=0.5):
+
+    height = 1080  # DMD height
+    width = 1920  # DMD width
+    shape = (height, width)
+    dtype = np.float
+    frame = luminance * np.ones(shape, dtype=dtype)
+
+    return frame
+
+
 def generate(args):
 
     _ = args
@@ -673,15 +684,15 @@ def generate(args):
     if not os.path.isdir(frames_path):
         os.makedirs(frames_path)
 
-    reference_images_indices = list(range(1, 4))
+    reference_images_indices = list(range(1, 3))
     for index in reference_images_indices:
         collect_reference_image(index, path=reference_images_path)
 
-    perturbation_patterns_indices = list(range(1, 4))
+    perturbation_patterns_indices = list(range(1, 3))
     for index in perturbation_patterns_indices:
         collect_perturbation_pattern(index, path=perturbation_patterns_path)
 
-    perturbation_amplitudes_indices = [5, 10, 15]
+    perturbation_amplitudes_indices = [5, 10]
     perturbation_amplitudes = {
         k: float(k) / np.iinfo(np.uint8).max
         for k in perturbation_amplitudes_indices
@@ -696,13 +707,23 @@ def generate(args):
     nb_reference_images = len(reference_images_indices)
     nb_perturbation_patterns = len(perturbation_patterns_indices)
     nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
-    nb_images = nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
+    nb_images = 1 + nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
 
     # Create .bin file.
     bin_filename = "fipwc.bin"
     bin_path = os.path.join(path, bin_filename)
     bin_file = open_bin_file(bin_path, nb_images)
+    # Get grey frame.
+    grey_frame = get_grey_frame()
+    grey_frame = float_frame_to_uint8_frame(grey_frame)
+    # Save frame in .bin file.
+    bin_file.append(grey_frame)
+    # Save frame as .png file.
+    grey_frame_filename = "grey.png"
+    grey_frame_path = os.path.join(frames_path, grey_frame_filename)
+    save_frame(grey_frame_path, grey_frame)
     for reference_image_index in reference_images_indices:
+        # Get reference frame.
         reference_image = load_reference_image(reference_image_index, reference_images_path)
         reference_frame = get_reference_frame(reference_image)
         reference_frame = float_frame_to_uint8_frame(reference_frame)
@@ -726,21 +747,36 @@ def generate(args):
                 perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}_a{:05d}.png".format(reference_image_index, perturbation_pattern_index, perturbation_amplitude_index)
                 perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
                 save_frame(perturbed_frame_path, perturbed_frame)
-                print(perturbed_frame_path)
-                print(perturbation_pattern_index)
     bin_file.close()
 
-    nb_repetitions = 16
-
     combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
+
+    # display_rate = 50.0  # Hz
+    display_rate = 20.0  # Hz
+    frame_duration = 0.3  # s
+
+    nb_repetitions = 1
+    nb_combinations = len(combinations)
+    nb_frame_displays = int(display_rate * frame_duration)
+    assert display_rate * frame_duration == float(nb_frame_displays)
+    nb_displays = nb_frame_displays + nb_repetitions * nb_combinations * 2 * nb_frame_displays
 
     # Create .vec file.
     vec_filename = "fipwc.vec"
     vec_path = os.path.join(path, vec_filename)
-    vec_file = open_vec_file(vec_path)
+    vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
+    grey_frame_id = 1
+    for k in range(0, nb_frame_displays):
+        vec_file.append(grey_frame_id)
     for k in range(0, nb_repetitions):
-        combination_indices = np.random.shuffle(list(combinations.keys()))
-        vec_file.append(combination_indices)  # TODO correct
+        combination_indices = np.array(list(combinations.keys()))
+        np.random.shuffle(combination_indices)
+        for combination_index in combination_indices:
+            combination_frame_id = combination_index + 1
+            for k in range(0, nb_frame_displays):
+                vec_file.append(combination_frame_id)
+            for k in range(0, nb_frame_displays):
+                vec_file.append(grey_frame_id)
     vec_file.close()
 
     return
