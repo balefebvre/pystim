@@ -10,9 +10,13 @@ import scipy.ndimage
 import tempfile
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from PIL.Image import fromarray
 from PIL.Image import open as open_image
 from urllib.parse import urlparse
 from urllib.request import urlopen, urlretrieve
+
+from pystim.io.bin import open_file as open_bin_file
+from pystim.io.vec import open_file as open_vec_file
 
 
 def load_resource(url):
@@ -343,23 +347,40 @@ def generate(args):
     raise NotImplementedError()
 
 
+def get_checkerboard_locator(index, scheme='file', path=None):
+
+    filename = "checkerboard{:05d}.png".format(index)
+
+    if scheme == 'file':
+        netloc = "localhost"
+        path = os.path.join(path, filename)
+        url = "{}://{}{}".format(scheme, netloc, path)
+    else:
+        raise ValueError("unexpected scheme value: {}".format(scheme))
+
+    return url
+
+
 def get_resource_locator(index, dataset='van Hateren', **kwargs):
 
     if dataset == 'van Hateren':
         url = get_van_hateren_resource_locator(index, **kwargs)
     elif dataset == 'Palmer':
         url = get_palmer_resource_locator(index, **kwargs)
+    elif dataset == 'checkerboard':
+        url = get_checkerboard_locator(index, **kwargs)
     else:
         raise ValueError("unexpected dataset value: {}".format(dataset))
 
     return url
 
 
-def is_reference_image(url):
+def is_resource(url):
 
     url = urlparse(url)
     if url.scheme == 'file':
         ans = os.path.isfile(url.path)
+        print("{} is resource: {}".format(url.path, ans))
     elif url.scheme == 'http':
         ans = True
     else:
@@ -368,26 +389,268 @@ def is_reference_image(url):
     return ans
 
 
-def collect_reference_images(indices=None, dataset='van Hateren', **kwargs):
+def collect_reference_image(index, dataset='van Hateren', **kwargs):
 
-    assert indices is not None
+    local_url = get_resource_locator(index, dataset=dataset, scheme='file', **kwargs)
+    if not is_resource(local_url):
+        remote_url = get_resource_locator(index, dataset=dataset, scheme='http', **kwargs)
+        local_url = urlparse(local_url)
+        local_path = local_url.path
+        urlretrieve(remote_url, local_path)
 
-    for index in indices:
-        local_url = get_resource_locator(index, dataset=dataset, scheme='file', **kwargs)
-        if not is_reference_image(local_url):
-            remote_url = get_resource_locator(index, dataset=dataset, scheme='http', **kwargs)
-            local_url = urlparse(local_url)
-            local_path = local_url.path
-            urlretrieve(remote_url, local_path)
+    return
 
-    # TODO for each reference image index
-    # TODO get the local url
-    # TODO   if the reference image doesn't exist locally
-    # TODO     get the remote url
-    # TODO     load the reference image
-    # TODO     save the reference image
 
-    # TODO complete
+def generate_perturbation_pattern(index, path=None):
+
+    assert path is not None
+
+    np.random.seed(seed=index)
+    dtype = np.uint8
+    info = np.iinfo(dtype)
+    a = np.array([info.min, info.max], dtype=dtype)
+    height = 14
+    width = 26
+    shape = (height, width)
+    pattern = np.random.choice(a=a, size=shape)
+    image = fromarray(pattern)
+    image.save(path)
+
+    return
+
+
+def collect_perturbation_pattern(index, path=None):
+
+    assert path is not None
+
+    url = get_resource_locator(index, dataset='checkerboard', scheme='file', path=path)
+    if not is_resource(url):
+        url = urlparse(url)
+        path = url.path
+        generate_perturbation_pattern(index, path=path)
+
+    return
+
+
+def load_perturbation_pattern(index, path):
+
+    url = get_resource_locator(index, dataset='checkerboard', scheme='file', path=path)
+    url = urlparse(url)
+    path = url.path
+
+    image = open_image(path)
+    data = image.getdata()
+    data = np.array(data, dtype=np.uint8)
+    width, height = image.size
+    data = data.reshape(height, width)
+
+    data = data.astype(np.float)
+    data = data / np.iinfo(np.uint8).max
+
+    return data
+
+
+def load_reference_image(index, path):
+
+    dtype = np.uint16
+    height = 1024
+    width = 1536
+
+    url = get_resource_locator(index, dataset='van Hateren', scheme='file', path=path)
+    url = urlparse(url)
+    path = url.path
+
+    with open(path, mode='rb') as handle:
+        data_bytes = handle.read()
+    data = array.array('H', data_bytes)
+    data.byteswap()
+    data = np.array(data, dtype=dtype)
+    data = data.reshape(height, width)
+
+    data = data.astype(np.float)
+    data = data / np.iinfo(dtype).max
+
+    return data
+
+
+def get_frame(image):
+
+    image_height, image_width = image.shape
+    # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
+    image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
+
+    frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
+    frame_resolution = 0.7  # µm / pixel
+
+    background_luminance = 0.5
+
+    if frame_resolution <= image_resolution:
+        # Up-sample the image (interpolation).
+        image_x = image_resolution * np.arange(0, image_height)
+        image_x = image_x - np.mean(image_x)
+        image_y = image_resolution * np.arange(0, image_width)
+        image_y = image_y - np.mean(image_y)
+        image_z = image
+        spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
+        frame_x = frame_resolution * np.arange(0, frame_height)
+        frame_x = frame_x - np.mean(frame_x)
+        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
+        frame_y = frame_resolution * np.arange(0, frame_width)
+        frame_y = frame_y - np.mean(frame_y)
+        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
+        frame_z = spline(frame_x[mask_x], frame_y[mask_y])
+        frame_i_min = np.min(np.nonzero(mask_x))
+        frame_i_max = np.max(np.nonzero(mask_x)) + 1
+        frame_j_min = np.min(np.nonzero(mask_y))
+        frame_j_max = np.max(np.nonzero(mask_y)) + 1
+        frame = background_luminance * np.ones(frame_shape, dtype=np.float)
+        frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
+    else:
+        # Down-sample the image (decimation).
+        image_frequency = 1.0 / image_resolution
+        frame_frequency = 1.0 / frame_resolution
+        cutoff = frame_frequency / image_frequency
+        sigma = math.sqrt(2.0 * math.log(2.0)) / (2.0 * math.pi * cutoff)
+        filtered_image = scipy.ndimage.gaussian_filter(image, sigma=sigma)
+        # see https://en.wikipedia.org/wiki/Gaussian_filter for a justification of this formula
+        image_x = image_resolution * np.arange(0, image_height)
+        image_x = image_x - np.mean(image_x)
+        image_y = image_resolution * np.arange(0, image_width)
+        image_y = image_y - np.mean(image_y)
+        image_z = filtered_image
+        spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
+        frame_x = frame_resolution * np.arange(0, frame_height)
+        frame_x = frame_x - np.mean(frame_x)
+        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
+        frame_y = frame_resolution * np.arange(0, frame_width)
+        frame_y = frame_y - np.mean(frame_y)
+        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
+        frame_z = spline(frame_x[mask_x], frame_y[mask_y])
+        frame_i_min = np.min(np.nonzero(mask_x))
+        frame_i_max = np.max(np.nonzero(mask_x)) + 1
+        frame_j_min = np.min(np.nonzero(mask_y))
+        frame_j_max = np.max(np.nonzero(mask_y)) + 1
+        frame = background_luminance * np.ones(frame_shape, dtype=np.float)
+        frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
+
+    limits = frame_i_min, frame_i_max, frame_j_min, frame_j_max
+
+    return frame, limits
+
+
+def get_reference_frame(reference_image):
+
+    frame, limits = get_frame(reference_image)
+    i_min, i_max, j_min, j_max = limits
+
+    mean_luminance = 0.5  # arb. unit
+    std_luminance = 0.06  # arb. unit
+
+    frame_roi = frame[i_min:i_max, j_min:j_max]
+    frame_roi = frame_roi - np.mean(frame_roi)
+    frame_roi = frame_roi / np.std(frame_roi)
+    frame_roi = frame_roi * std_luminance
+    frame_roi = frame_roi + mean_luminance
+    frame[i_min:i_max, j_min:j_max] = frame_roi
+
+    return frame
+
+
+def get_perturbation_frame(perturbation_image):
+
+    frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+    # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
+    frame_resolution = 0.7  # µm / pixel
+
+    frame_x = frame_resolution * np.arange(0, frame_height)
+    frame_x = frame_x - np.mean(frame_x)
+    frame_y = frame_resolution * np.arange(0, frame_width)
+    frame_y = frame_y - np.mean(frame_y)
+
+    perturbation = perturbation_image
+    perturbation_height, perturbation_width = perturbation.shape
+    perturbation_resolution = 50.0  # µm / pixel
+    perturbation_x = perturbation_resolution * np.arange(0, perturbation_height)
+    perturbation_x = perturbation_x - np.mean(perturbation_x)
+    perturbation_y = perturbation_resolution * np.arange(0, perturbation_width)
+    perturbation_y = perturbation_y - np.mean(perturbation_y)
+    perturbation_z = perturbation
+    perturbation_x_, perturbation_y_ = np.meshgrid(perturbation_x, perturbation_y)
+    perturbation_points = np.stack((perturbation_x_.flatten(), perturbation_y_.flatten()), axis=-1)
+    perturbation_data = perturbation_z.flatten()
+    interpolate = scipy.interpolate.NearestNDInterpolator(perturbation_points, perturbation_data)
+    mask_x = np.logical_and(np.min(perturbation_x) - 0.5 * perturbation_resolution <= frame_x, frame_x <= np.max(perturbation_x) + 0.5 * perturbation_resolution)
+    mask_y = np.logical_and(np.min(perturbation_y) - 0.5 * perturbation_resolution <= frame_y, frame_y <= np.max(perturbation_y) + 0.5 * perturbation_resolution)
+    frame_x_, frame_y_ = np.meshgrid(frame_x[mask_x], frame_y[mask_y])
+    frame_x_ = frame_x_.transpose().flatten()
+    frame_y_ = frame_y_.transpose().flatten()
+    frame_points_ = np.stack((frame_x_, frame_y_), axis=-1)
+    frame_data_ = interpolate(frame_points_)
+    frame_z_ = np.reshape(frame_data_, (frame_x[mask_x].size, frame_y[mask_y].size))
+    i_min = np.min(np.nonzero(mask_x))
+    i_max = np.max(np.nonzero(mask_x)) + 1
+    j_min = np.min(np.nonzero(mask_y))
+    j_max = np.max(np.nonzero(mask_y)) + 1
+    frame = np.zeros(frame_shape, dtype=np.float)
+    frame[i_min:i_max, j_min:j_max] = frame_z_
+
+    frame_roi = frame[i_min:i_max, j_min:j_max]
+    print("mean (luminance): {}".format(np.mean(frame_roi)))
+    print("std (luminance): {}".format(np.std(frame_roi)))
+    print("min (luminance): {}".format(np.min(frame_roi)))
+    print("max (luminance): {}".format(np.max(frame_roi)))
+    frame_roi = -1.0 + 2.0 * frame_roi
+    print("mean (luminance): {}".format(np.mean(frame_roi)))
+    print("std (luminance): {}".format(np.std(frame_roi)))
+    print("min (luminance): {}".format(np.min(frame_roi)))
+    print("max (luminance): {}".format(np.max(frame_roi)))
+    frame[i_min:i_max, j_min:j_max] = frame_roi
+
+    return frame
+
+
+def float_frame_to_uint8_frame(float_frame):
+
+    dtype = np.uint8
+    dinfo = np.iinfo(dtype)
+    float_frame = float_frame * dinfo.max
+    float_frame[float_frame < dinfo.min] = dinfo.min
+    float_frame[dinfo.max + 1 <= float_frame] = dinfo.max
+    uint8_frame = float_frame.astype(dtype)
+
+    return uint8_frame
+
+
+def get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude):
+
+    reference_frame = get_reference_frame(reference_image)
+    perturbation_frame = get_perturbation_frame(perturbation_pattern)
+    frame = reference_frame + perturbation_amplitude * perturbation_frame
+
+    return frame
+
+
+def get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices):
+
+    index = 1
+    combinations = {}
+
+    for i in reference_images_indices:
+        combinations[index] = (i, 0, 0)
+        index += 1
+        for j in perturbation_patterns_indices:
+            for k in perturbation_amplitudes_indices:
+                combinations[index] = (i, j, k)
+                index += 1
+
+    return combinations
+
+
+def save_frame(path, frame):
+
+    image = fromarray(frame)
+    image.save(path)
 
     return
 
@@ -395,27 +658,89 @@ def collect_reference_images(indices=None, dataset='van Hateren', **kwargs):
 def generate(args):
 
     _ = args
+    # path = tempfile.mkdtemp()
     path = '/tmp/tmps5xrjpxh'
+    if not os.path.isdir(path):
+        os.makedirs(path)
 
-    if path is None:
-        path = tempfile.mkdtemp()
-    else:
-        if not os.path.isdir(path):
-            os.makedirs(path)
+    reference_images_path = os.path.join(path, "reference_images")
+    if not os.path.isdir(reference_images_path):
+        os.makedirs(reference_images_path)
+    perturbation_patterns_path = os.path.join(path, "perturbation_patterns")
+    if not os.path.isdir(perturbation_patterns_path):
+        os.makedirs(perturbation_patterns_path)
+    frames_path = os.path.join(path, "frames")
+    if not os.path.isdir(frames_path):
+        os.makedirs(frames_path)
 
-    print(path)
+    reference_images_indices = list(range(1, 4))
+    for index in reference_images_indices:
+        collect_reference_image(index, path=reference_images_path)
 
-    refrence_images_path = os.path.join(path, "reference_images")
-    if not os.path.isdir(refrence_images_path):
-        os.makedirs(refrence_images_path)
-    collect_reference_images([1, 2, 3], path=refrence_images_path)
-    collect_perturbation_patterns(path=os.path.join(path, "perturbation_patterns"))
+    perturbation_patterns_indices = list(range(1, 4))
+    for index in perturbation_patterns_indices:
+        collect_perturbation_pattern(index, path=perturbation_patterns_path)
 
-    # TODO generate all the reference frames and all the perturbed frames.
-    # TODO 1. get the list of reference images
-    # TODO 2. get the list of perturbation patterns (or number of perturbation patterns to generate)
-    # TODO 3. get the list of perturbation amplitudes
-    # TODO 4. generate all the reference frames
-    # TODO 5. generate all the perturbed frames
+    perturbation_amplitudes_indices = [5, 10, 15]
+    perturbation_amplitudes = {
+        k: float(k) / np.iinfo(np.uint8).max
+        for k in perturbation_amplitudes_indices
+    }
+
+    for index in reference_images_indices:
+        _ = load_reference_image(index, reference_images_path)
+
+    for index in perturbation_patterns_indices:
+        _ = load_perturbation_pattern(index, perturbation_patterns_path)
+
+    nb_reference_images = len(reference_images_indices)
+    nb_perturbation_patterns = len(perturbation_patterns_indices)
+    nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
+    nb_images = nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
+
+    # Create .bin file.
+    bin_filename = "fipwc.bin"
+    bin_path = os.path.join(path, bin_filename)
+    bin_file = open_bin_file(bin_path, nb_images)
+    for reference_image_index in reference_images_indices:
+        reference_image = load_reference_image(reference_image_index, reference_images_path)
+        reference_frame = get_reference_frame(reference_image)
+        reference_frame = float_frame_to_uint8_frame(reference_frame)
+        # Save frame in .bin file.
+        bin_file.append(reference_frame)
+        # Save frame as .png file.
+        reference_frame_filename = "reference{:05d}.png".format(reference_image_index)
+        reference_frame_path = os.path.join(frames_path, reference_frame_filename)
+        save_frame(reference_frame_path, reference_frame)
+    for reference_image_index in reference_images_indices:
+        reference_image = load_reference_image(reference_image_index, reference_images_path)
+        for perturbation_pattern_index in perturbation_patterns_indices:
+            perturbation_pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
+            for perturbation_amplitude_index in perturbation_amplitudes_indices:
+                perturbation_amplitude = perturbation_amplitudes[perturbation_amplitude_index]
+                perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude)
+                perturbed_frame = float_frame_to_uint8_frame(perturbed_frame)
+                # Save frame in .bin file.
+                bin_file.append(perturbed_frame)
+                # Save frame as .png file.
+                perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}_a{:05d}.png".format(reference_image_index, perturbation_pattern_index, perturbation_amplitude_index)
+                perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
+                save_frame(perturbed_frame_path, perturbed_frame)
+                print(perturbed_frame_path)
+                print(perturbation_pattern_index)
+    bin_file.close()
+
+    nb_repetitions = 16
+
+    combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
+
+    # Create .vec file.
+    vec_filename = "fipwc.vec"
+    vec_path = os.path.join(path, vec_filename)
+    vec_file = open_vec_file(vec_path)
+    for k in range(0, nb_repetitions):
+        combination_indices = np.random.shuffle(list(combinations.keys()))
+        vec_file.append(combination_indices)  # TODO correct
+    vec_file.close()
 
     return
