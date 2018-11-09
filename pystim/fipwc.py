@@ -183,7 +183,7 @@ def generate(args):
     image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
 
     # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
-    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -268,7 +268,8 @@ def generate(args):
     # TODO clean the following experimental lines.
 
     # TODO create the image perturbations (i.e. the checkerboards).
-    perturbation_shape = perturbation_height, perturbation_width = (14, 26)
+    # perturbation_shape = perturbation_height, perturbation_width = (14, 26)
+    perturbation_shape = perturbation_height, perturbation_width = (10, 10)
     perturbation = np.random.choice(a=[-1.0, +1.0], size=perturbation_shape)
     perturbation_resolution = 50.0  # µm / pixel
     perturbation_x = perturbation_resolution * np.arange(0, perturbation_height)
@@ -410,8 +411,10 @@ def generate_perturbation_pattern(index, path=None):
     dtype = np.uint8
     info = np.iinfo(dtype)
     a = np.array([info.min, info.max], dtype=dtype)
-    height = 14
-    width = 26
+    # height = 14
+    # width = 26
+    height = 10
+    width = 10
     shape = (height, width)
     pattern = np.random.choice(a=a, size=shape)
     image = fromarray(pattern)
@@ -481,7 +484,7 @@ def get_frame(image):
     image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
 
     # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
-    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -548,7 +551,7 @@ def get_reference_frame(reference_image):
 
     mean_luminance = 0.5  # arb. unit
     # std_luminance = 0.06  # arb. unit
-    std_luminance = 0.5  # arb. unit
+    std_luminance = 0.2  # arb. unit
 
     frame_roi = frame[i_min:i_max, j_min:j_max]
     frame_roi = frame_roi - np.mean(frame_roi)
@@ -564,7 +567,7 @@ def get_reference_frame(reference_image):
 def get_perturbation_frame(perturbation_image):
 
     # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
-    frame_shape = frame_height, frame_width = 500, 500  # fixed by the DMD
+    frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
     frame_resolution = 0.7  # µm / pixel
 
@@ -664,8 +667,8 @@ def get_grey_frame(luminance=0.5):
 
     # height = 1080  # DMD height
     # width = 1920  # DMD width
-    height = 500  # DMD height
-    width = 500  # DMD width
+    height = 768  # DMD height
+    width = 768  # DMD width
     shape = (height, width)
     dtype = np.float
     frame = luminance * np.ones(shape, dtype=dtype)
@@ -691,15 +694,19 @@ def generate(args):
     if not os.path.isdir(frames_path):
         os.makedirs(frames_path)
 
-    reference_images_indices = list(range(1, 3))
+    # reference_images_indices = list(range(1, 101))
+    # reference_images_indices = [5, 31, 39, 46]  # a selection of promising images
+    reference_images_indices = [5, 31, 46]
     for index in reference_images_indices:
         collect_reference_image(index, path=reference_images_path)
 
-    perturbation_patterns_indices = list(range(1, 3))
+    # perturbation_patterns_indices = list(range(1, 2 + 1))
+    perturbation_patterns_indices = list(range(1, 18 + 1))
     for index in perturbation_patterns_indices:
         collect_perturbation_pattern(index, path=perturbation_patterns_path)
 
-    perturbation_amplitudes_indices = [5, 10]
+    # perturbation_amplitudes_indices = [5, 10]
+    perturbation_amplitudes_indices = [2, 4, 7, 10, 14, 18, 23, 28]
     perturbation_amplitudes = {
         k: float(k) / np.iinfo(np.uint8).max
         for k in perturbation_amplitudes_indices
@@ -715,6 +722,23 @@ def generate(args):
     nb_perturbation_patterns = len(perturbation_patterns_indices)
     nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
     nb_images = 1 + nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
+
+    combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
+
+    # display_rate = 50.0  # Hz
+    display_rate = 40.0  # Hz
+    # frame_duration = 0.3  # s
+    frame_duration = 0.3  # s
+
+    # nb_repetitions = 1
+    nb_repetitions = 20
+    nb_combinations = len(combinations)
+    nb_frame_displays = int(display_rate * frame_duration)
+    assert display_rate * frame_duration == float(nb_frame_displays)
+    nb_displays = nb_frame_displays + nb_repetitions * nb_combinations * 2 * nb_frame_displays
+
+    display_time = float(nb_displays) / display_rate
+    print("display time: {} s ({} min)".format(display_time, display_time / 60.0))
 
     # Create .bin file.
     bin_filename = "fipwc.bin"
@@ -758,19 +782,6 @@ def generate(args):
                 perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
                 save_frame(perturbed_frame_path, perturbed_frame)
     bin_file.close()
-
-    combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
-
-    # display_rate = 50.0  # Hz
-    display_rate = 60.0  # Hz
-    # frame_duration = 0.3  # s
-    frame_duration = 10.0  # s
-
-    nb_repetitions = 1
-    nb_combinations = len(combinations)
-    nb_frame_displays = int(display_rate * frame_duration)
-    assert display_rate * frame_duration == float(nb_frame_displays)
-    nb_displays = nb_frame_displays + nb_repetitions * nb_combinations * 2 * nb_frame_displays
 
     # Create .vec file.
     vec_filename = "fipwc.vec"

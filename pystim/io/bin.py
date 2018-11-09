@@ -17,10 +17,10 @@ class BinFile:
         self._nb_images = nb_images
 
         self._file = open(self._path, mode='w+b',)
-        # self._dmd_height = 1080
-        # self._dmd_width = 1920
-        self._dmd_width = 500
-        self._dmd_height = 500
+        self._dmd_height = 768
+        self._dmd_width = 768
+        # self._dmd_width = 600
+        # self._dmd_height = 600
         self._nb_bits = 8
 
         self._write_header()
