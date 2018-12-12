@@ -1,9 +1,23 @@
 import argparse
 
 from pystim.fipwc import generate as generate_fipwc
+from pystim.utils import list_stimuli, configure, initialize, reinitialize
 
 
-def check(args):
+def print_list_stimuli(args):
+
+    _ = args
+
+    stimuli = list_stimuli()
+    if len(stimuli) > 0:
+        lines = ["    - {}".format(s) for s in stimuli]
+        message = '\n'.join(lines)
+        print(message)
+
+    return
+
+
+def defaults(args):
 
     _ = args
 
@@ -16,6 +30,18 @@ def main():
     parser.set_defaults(func=lambda args_: parser.print_usage())
     subparsers = parser.add_subparsers(title='positional arguments')
 
+    subparser_config = subparsers.add_parser('config', help='config help')
+    subparser_config.set_defaults(func=configure)
+
+    subparser_init = subparsers.add_parser('init', help='init help')
+    subparser_init.set_defaults(func=initialize)
+
+    subparser_reinit = subparsers.add_parser('reinit', help='reinit help')
+    subparser_reinit.set_defaults(func=reinitialize)
+
+    subparser_list = subparsers.add_parser('list', help='list help')
+    subparser_list.set_defaults(func=print_list_stimuli)
+
     subparser_generate = subparsers.add_parser('generate', help="generate help")
     subparser_generate.set_defaults(func=lambda args_: subparser_generate.print_usage())
     subparsers_generate = subparser_generate.add_subparsers(title="positional arguments")
@@ -24,7 +50,7 @@ def main():
     subparser_generate_fipwc.set_defaults(func=generate_fipwc)
 
     subparser_check = subparsers.add_parser('check', help="check help")
-    subparser_check.set_defaults(func=check)
+    subparser_check.set_defaults(func=defaults)
 
     args = parser.parse_args()
     args.func(args)

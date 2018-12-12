@@ -7,7 +7,7 @@ import os
 import scipy
 import scipy.interpolate
 import scipy.ndimage
-# import tempfile
+import tempfile
 
 # from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL.Image import fromarray
@@ -17,6 +17,48 @@ from urllib.request import urlopen, urlretrieve
 
 from pystim.io.bin import open_file as open_bin_file
 from pystim.io.vec import open_file as open_vec_file
+from pystim.utils import handle_arguments_and_configurations
+
+
+name = 'fipwc'
+
+default_configuration = {
+    'path': os.path.join(tempfile.gettempdir(), "pystim"),
+    'reference_images': {
+        # 'indices': [5, 31, 39, 46],  # a selection of promising images
+        'indices': [5, 31, 46],
+    },
+    'perturbations': {
+        'pattern_indices': list(range(1, 2 + 1)),
+        # 'pattern_indices': list(range(1, 18 + 1)),
+        'amplitude_indices': [10, 28],
+        # 'amplitude_indices': [2, 4, 7, 10, 14, 18, 23, 28],
+    },
+    # 'display_rate': 50.0,  # Hz
+    'display_rate': 40.0,  # Hz
+    'frame': {
+        # 'width': 1920',  # DMD's limit
+        'width': 768,
+        # 'height': 1080,  # DMD's limit
+        'height': 768,
+        'duration': 0.3,  # s
+        # 'resolution': 0.42, # µm / pixel  # fixed by the setup
+        'resolution': 0.7,  # µm / pixel  # fixed by the setup
+    },
+    # 'frame_width': 768,  # TODO remove.
+    # 'frame_height': 768,  # TODO remove.
+    # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
+    'image_resolution': 0.8,  # µm / pixel  # fixed by the eye (salamander)
+    'background_luminance': 0.5,  # arb. unit
+    'mean_luminance': 0.5,  # arb. unit
+    # 'std_luminance': 0.06,  # arb. unit
+    'std_luminance': 0.2,  # arb. unit
+    # 'frame_duration': 0.3,  # s  # TODO remove.
+    # 'frame_duration': 0.3,  # s  # TODO remove.
+    # 'frame_resolution': 0.7,  # µm / pixel  # TODO remove.
+    'nb_repetitions': 1,
+    # 'nb_repetitions': 20,
+}
 
 
 def load_resource(url):
@@ -496,18 +538,16 @@ def load_reference_image(index, path):
     return data
 
 
-def get_frame(image):
+def get_frame(image, config):
 
     image_height, image_width = image.shape
-    # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
-    image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
+    image_resolution = config['image_resolution']
+    frame_width = config['frame']['width']
+    frame_height = config['frame']['height']
+    frame_shape = frame_height, frame_width
+    frame_resolution = config['frame']['resolution']
 
-    # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
-    frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
-    # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
-    frame_resolution = 0.7  # µm / pixel
-
-    background_luminance = 0.5
+    background_luminance = config['background_luminance']
 
     if frame_resolution <= image_resolution:
         # Up-sample the image (interpolation).
@@ -575,14 +615,13 @@ def get_frame(image):
     return frame, limits
 
 
-def get_reference_frame(reference_image):
+def get_reference_frame(reference_image, config):
 
-    frame, limits = get_frame(reference_image)
+    frame, limits = get_frame(reference_image, config)
     i_min, i_max, j_min, j_max = limits
 
-    mean_luminance = 0.5  # arb. unit
-    # std_luminance = 0.06  # arb. unit
-    std_luminance = 0.2  # arb. unit
+    mean_luminance = config['mean_luminance']
+    std_luminance = config['std_luminance']
 
     frame_roi = frame[i_min:i_max, j_min:j_max]
     frame_roi = frame_roi - np.mean(frame_roi)
@@ -667,9 +706,9 @@ def float_frame_to_uint8_frame(float_frame):
     return uint8_frame
 
 
-def get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude):
+def get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude, config):
 
-    reference_frame = get_reference_frame(reference_image)
+    reference_frame = get_reference_frame(reference_image, config)
     perturbation_frame = get_perturbation_frame(perturbation_pattern)
     frame = reference_frame + perturbation_amplitude * perturbation_frame
 
@@ -715,9 +754,9 @@ def get_grey_frame(luminance=0.5):
 
 def generate(args):
 
-    _ = args
-    # path = tempfile.mkdtemp()
-    path = '/tmp/tmps5xrjpxh'  # TODO transform into parameter.
+    config = handle_arguments_and_configurations(name, args)
+
+    path = config['path']
     if not os.path.isdir(path):
         os.makedirs(path)
 
@@ -731,19 +770,15 @@ def generate(args):
     if not os.path.isdir(frames_path):
         os.makedirs(frames_path)
 
-    # reference_images_indices = list(range(1, 101))
-    # reference_images_indices = [5, 31, 39, 46]  # a selection of promising images
-    reference_images_indices = [5, 31, 46]  # TODO transform into parameter.
+    reference_images_indices = config['reference_images']['indices']
     for index in reference_images_indices:
         collect_reference_image(index, path=reference_images_path)
 
-    # perturbation_patterns_indices = list(range(1, 2 + 1))
-    perturbation_patterns_indices = list(range(1, 18 + 1))  # TODO transform into parameter.
+    perturbation_patterns_indices = config['perturbations']['pattern_indices']
     for index in perturbation_patterns_indices:
         collect_perturbation_pattern(index, path=perturbation_patterns_path)
 
-    # perturbation_amplitudes_indices = [5, 10]
-    perturbation_amplitudes_indices = [2, 4, 7, 10, 14, 18, 23, 28]  # TODO transform into parameter.
+    perturbation_amplitudes_indices = config['perturbations']['amplitude_indices']
     perturbation_amplitudes = {
         k: float(k) / np.iinfo(np.uint8).max
         for k in perturbation_amplitudes_indices
@@ -763,13 +798,10 @@ def generate(args):
     combinations = get_combinations(reference_images_indices, perturbation_patterns_indices,
                                     perturbation_amplitudes_indices)
 
-    # display_rate = 50.0  # Hz
-    display_rate = 40.0  # Hz  # TODO transform into parameter.
-    # frame_duration = 0.3  # s
-    frame_duration = 0.3  # s  # TODO transform into parameter.
+    display_rate = config['display_rate']
+    frame_duration = config['frame']['duration']
 
-    # nb_repetitions = 1
-    nb_repetitions = 20  # TODO transform into parameter.
+    nb_repetitions = config['nb_repetitions']
     nb_combinations = len(combinations)
     nb_frame_displays = int(display_rate * frame_duration)
     assert display_rate * frame_duration == float(nb_frame_displays)
@@ -796,7 +828,7 @@ def generate(args):
     for reference_image_index in reference_images_indices:
         # Get reference frame.
         reference_image = load_reference_image(reference_image_index, reference_images_path)
-        reference_frame = get_reference_frame(reference_image)
+        reference_frame = get_reference_frame(reference_image, config)
         reference_frame = float_frame_to_uint8_frame(reference_frame)
         # Save frame in .bin file.
         print(reference_frame.shape)
@@ -811,7 +843,7 @@ def generate(args):
             perturbation_pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
             for perturbation_amplitude_index in perturbation_amplitudes_indices:
                 perturbation_amplitude = perturbation_amplitudes[perturbation_amplitude_index]
-                perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude)
+                perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude, config)
                 perturbed_frame = float_frame_to_uint8_frame(perturbed_frame)
                 # Save frame in .bin file.
                 print(perturbed_frame.shape)
