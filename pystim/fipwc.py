@@ -1,15 +1,15 @@
 import array
 import io
 import math
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import os
 import scipy
 import scipy.interpolate
 import scipy.ndimage
-import tempfile
+# import tempfile
 
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL.Image import fromarray
 from PIL.Image import open as open_image
 from urllib.parse import urlparse
@@ -79,7 +79,8 @@ def get_van_hateren_resource_locator(index, format_='iml', scheme='file', path=N
         if mirror == 'Lies':
             assert 1 <= index <= 4212
             assert format_ in ['iml', 'imc']
-            url = "http://cin-11.medizin.uni-tuebingen.de:61280/vanhateren/{f}/imk{i:05d}.{f}".format(i=index, f=format_)
+            url_string = "http://cin-11.medizin.uni-tuebingen.de:61280/vanhateren/{f}/imk{i:05d}.{f}"
+            url = url_string.format(i=index, f=format_)
         elif mirror == 'Ivanov':
             assert 1 <= index <= 99
             if format_ == 'iml':
@@ -109,7 +110,7 @@ def get_van_hateren_resource_locators(path=None, indices=None, format_='iml', mi
             raise ValueError("unexpected mirror value: {}".format(mirror))
 
     urls = [
-        get_van_hateren_resource_locator(path, index, format_=format_, mirror=mirror)
+        get_van_hateren_resource_locator(index, format_=format_, path=path, mirror=mirror)
         for index in indices
     ]
 
@@ -128,225 +129,243 @@ def convert_van_hateren_resource_to_image(resource):
     return image
 
 
-def generate(args):
-
-    _ = args  # TODO remove.
-
-    # dataset = 'Palmer'
-    dataset = 'van Hateren'  # TODO cache the van Hateren's natural images.
-
-    # TODO collect the reference images (i.e. natural images).
-    if dataset == 'Palmer':
-        path = os.path.join("~", "spot_sensitivity_context_dependent")
-        path = os.path.expanduser(path)
-        urls = get_palmer_resource_locators(path=path, indices=[1])
-    elif dataset == 'van Hateren':
-        path = tempfile.TemporaryDirectory()
-        urls = get_van_hateren_resource_locators(path=path, indices=[5])
-    else:
-        raise ValueError("unexpected dataset value: {}".format(dataset))
-    # Print resource locators.
-    for url in urls:
-        print(url)
-    # Load resources.
-    resources = [
-        load_resource(url)
-        for url in urls
-    ]
-    # Convert resources to images.
-    if dataset == 'Palmer':
-        images = [
-            convert_palmer_resource_to_image(resource)
-            for resource in resources
-        ]
-    elif dataset == 'van Hateren':
-        images = [
-            convert_van_hateren_resource_to_image(resource)
-            for resource in resources
-        ]
-    else:
-        raise ValueError("unexpected dataset value: {}".format(dataset))
-
-    # TODO clean the following experimental lines.
-
-    image = images[0]
-
-    # Plot reference image.
-    fig, ax = plt.subplots()
-    im = ax.imshow(image, cmap='gray', vmin=-1.0, vmax=1.0)
-    div = make_axes_locatable(ax)
-    cax = div.append_axes('right', size='5%', pad=0.05)
-    plt.colorbar(im, cax=cax)
-
-    image_height, image_width = image.shape
-    # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
-    image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
-
-    # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
-    frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
-    # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
-    frame_resolution = 0.7  # µm / pixel
-
-    background_luminance = 0.5
-
-    if frame_resolution <= image_resolution:
-        # Up-sample the image (interpolation).
-        image_x = image_resolution * np.arange(0, image_height)
-        image_x = image_x - np.mean(image_x)
-        image_y = image_resolution * np.arange(0, image_width)
-        image_y = image_y - np.mean(image_y)
-        image_z = image
-        spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
-        frame_x = frame_resolution * np.arange(0, frame_height)
-        frame_x = frame_x - np.mean(frame_x)
-        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
-        frame_y = frame_resolution * np.arange(0, frame_width)
-        frame_y = frame_y - np.mean(frame_y)
-        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
-        frame_z = spline(frame_x[mask_x], frame_y[mask_y])
-        frame_i_min = np.min(np.nonzero(mask_x))
-        frame_i_max = np.max(np.nonzero(mask_x)) + 1
-        frame_j_min = np.min(np.nonzero(mask_y))
-        frame_j_max = np.max(np.nonzero(mask_y)) + 1
-        frame = background_luminance * np.ones(frame_shape, dtype=np.float)
-        frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
-    else:
-        # Down-sample the image (decimation).
-        image_frequency = 1.0 / image_resolution
-        frame_frequency = 1.0 / frame_resolution
-        cutoff = frame_frequency / image_frequency
-        sigma = math.sqrt(2.0 * math.log(2.0)) / (2.0 * math.pi * cutoff)
-        filtered_image = scipy.ndimage.gaussian_filter(image, sigma=sigma)
-        # see https://en.wikipedia.org/wiki/Gaussian_filter for a justification of this formula
-        image_x = image_resolution * np.arange(0, image_height)
-        image_x = image_x - np.mean(image_x)
-        image_y = image_resolution * np.arange(0, image_width)
-        image_y = image_y - np.mean(image_y)
-        image_z = filtered_image
-        spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
-        frame_x = frame_resolution * np.arange(0, frame_height)
-        frame_x = frame_x - np.mean(frame_x)
-        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
-        frame_y = frame_resolution * np.arange(0, frame_width)
-        frame_y = frame_y - np.mean(frame_y)
-        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
-        frame_z = spline(frame_x[mask_x], frame_y[mask_y])
-        frame_i_min = np.min(np.nonzero(mask_x))
-        frame_i_max = np.max(np.nonzero(mask_x)) + 1
-        frame_j_min = np.min(np.nonzero(mask_y))
-        frame_j_max = np.max(np.nonzero(mask_y)) + 1
-        frame = background_luminance * np.ones(frame_shape, dtype=np.float)
-        frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
-
-    mean_luminance = 0.5  # arb. unit
-    std_luminance = 0.06  # arb. unit
-
-    frame_roi = frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max]
-    print("mean (luminance): {}".format(np.mean(frame_roi)))
-    print("std (luminance): {}".format(np.std(frame_roi)))
-    print("min (luminance): {}".format(np.min(frame_roi)))
-    print("max (luminance): {}".format(np.max(frame_roi)))
-    frame_roi = frame_roi - np.mean(frame_roi)
-    frame_roi = frame_roi / np.std(frame_roi)
-    frame_roi = frame_roi * std_luminance
-    frame_roi = frame_roi + mean_luminance
-    print("mean (luminance): {}".format(np.mean(frame_roi)))
-    print("std (luminance): {}".format(np.std(frame_roi)))
-    print("min (luminance): {}".format(np.min(frame_roi)))
-    print("max (luminance): {}".format(np.max(frame_roi)))
-    frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_roi
-
-    # TODO clean the previous experimental lines..
-
-    # Plot reference frame.
-    fig, ax = plt.subplots()
-    im = ax.imshow(frame, cmap='gray', vmin=0.0, vmax=1.0)
-    div = make_axes_locatable(ax)
-    cax = div.append_axes('right', size='2%', pad=0.05)
-    plt.colorbar(im, cax=cax)
-
-    # TODO clean the following experimental lines.
-
-    # TODO create the image perturbations (i.e. the checkerboards).
-    # perturbation_shape = perturbation_height, perturbation_width = (14, 26)
-    perturbation_shape = perturbation_height, perturbation_width = (10, 10)
-    perturbation = np.random.choice(a=[-1.0, +1.0], size=perturbation_shape)
-    perturbation_resolution = 50.0  # µm / pixel
-    perturbation_x = perturbation_resolution * np.arange(0, perturbation_height)
-    perturbation_x = perturbation_x - np.mean(perturbation_x)
-    perturbation_y = perturbation_resolution * np.arange(0, perturbation_width)
-    perturbation_y = perturbation_y - np.mean(perturbation_y)
-    perturbation_z = perturbation
-    perturbation_x_, perturbation_y_ = np.meshgrid(perturbation_x, perturbation_y)
-    perturbation_points = np.stack((perturbation_x_.flatten(), perturbation_y_.flatten()), axis=-1)
-    perturbation_data = perturbation_z.flatten()
-    interpolate = scipy.interpolate.NearestNDInterpolator(perturbation_points, perturbation_data)
-    mask_x = np.logical_and(np.min(perturbation_x) - 0.5 * perturbation_resolution <= frame_x, frame_x <= np.max(perturbation_x) + 0.5 * perturbation_resolution)
-    mask_y = np.logical_and(np.min(perturbation_y) - 0.5 * perturbation_resolution <= frame_y, frame_y <= np.max(perturbation_y) + 0.5 * perturbation_resolution)
-    frame_x_, frame_y_ = np.meshgrid(frame_x[mask_x], frame_y[mask_y])
-    frame_x_ = frame_x_.transpose().flatten()
-    frame_y_ = frame_y_.transpose().flatten()
-    frame_points_ = np.stack((frame_x_, frame_y_), axis=-1)
-    frame_data_ = interpolate(frame_points_)
-    frame_z_ = np.reshape(frame_data_, (frame_x[mask_x].size, frame_y[mask_y].size))
-    frame_i_min = np.min(np.nonzero(mask_x))
-    frame_i_max = np.max(np.nonzero(mask_x)) + 1
-    frame_j_min = np.min(np.nonzero(mask_y))
-    frame_j_max = np.max(np.nonzero(mask_y)) + 1
-    perturbation_frame = np.zeros(frame_shape, dtype=np.float)
-    perturbation_frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z_
-
-    # Plot perturbation image.
-    fig, ax = plt.subplots()
-    im = ax.imshow(perturbation_frame, cmap='gray', vmin=-1.0, vmax=+1.0)
-    div = make_axes_locatable(ax)
-    cax = div.append_axes('right', size='2%', pad=0.05)
-    plt.colorbar(im, cax=cax)
-
-    # TODO create the perturbed images.
-
-    # Create perturbed reference image.
-    perturbation_amplitude = - 2.0 / (2.0 ** 8)
-    frame_ = frame + perturbation_amplitude * perturbation_frame
-
-    # Plot perturbed frame.
-    fig, ax = plt.subplots()
-    im = ax.imshow(frame_, cmap='gray', vmin=0.0, vmax=1.0)
-    div = make_axes_locatable(ax)
-    cax = div.append_axes('right', size='2%', pad=0.05)
-    plt.colorbar(im, cax=cax)
-
-    # TODO generate all the reference frames and all the perturbed frames.
-    # TODO 1. get the list of reference images
-    # TODO 2. get the list of perturbation patterns (or number of perturbation patterns to generate)
-    # TODO 3. get the list of perturbation amplitudes
-    # TODO 4. generate all the reference frames
-    # TODO 5. generate all the perturbed frames
-
-    # TODO create the .bin file.
-    # TODO 1. open the .bin file.
-    # TODO 2. for each reference frame
-    # TODO   - load the frame
-    # TODO   - append the frame to the .bin file
-    # TODO 3. for each perturbation
-    # TODO   - for each reference frame
-    # TODO     - load the corresponding perturbed frame
-    # TODO     - append the frame to the .bin file
-    # TODO 4. close the .bin file
-
-    # TODO create the interleaving of the perturbed images.
-    # TODO 1. list all the possible combinations (i.e. reference image, perturbation pattern, perturbation amplitude)
-    # TODO 2. for each repetition
-    # TODO   - sample a random order of the combinations
-    # TODO   - append this sequence to ...
-
-    # TODO create the .vec file.
-
-    # TODO clean the previous experimental lines.
-
-    plt.show()  # TODO save images to disk instead.
-
-    raise NotImplementedError()
+# def generate(args):
+#
+#     _ = args  # TODO remove.
+#
+#     # dataset = 'Palmer'
+#     dataset = 'van Hateren'  # TODO cache the van Hateren's natural images.
+#
+#     # TODO collect the reference images (i.e. natural images).
+#     if dataset == 'Palmer':
+#         path = os.path.join("~", "spot_sensitivity_context_dependent")
+#         path = os.path.expanduser(path)
+#         urls = get_palmer_resource_locators(path=path, indices=[1])
+#     elif dataset == 'van Hateren':
+#         path = tempfile.TemporaryDirectory()
+#         urls = get_van_hateren_resource_locators(path=path, indices=[5])
+#     else:
+#         raise ValueError("unexpected dataset value: {}".format(dataset))
+#     # Print resource locators.
+#     for url in urls:
+#         print(url)
+#     # Load resources.
+#     resources = [
+#         load_resource(url)
+#         for url in urls
+#     ]
+#     # Convert resources to images.
+#     if dataset == 'Palmer':
+#         images = [
+#             convert_palmer_resource_to_image(resource)
+#             for resource in resources
+#         ]
+#     elif dataset == 'van Hateren':
+#         images = [
+#             convert_van_hateren_resource_to_image(resource)
+#             for resource in resources
+#         ]
+#     else:
+#         raise ValueError("unexpected dataset value: {}".format(dataset))
+#
+#     # TODO clean the following experimental lines.
+#
+#     image = images[0]
+#
+#     # Plot reference image.
+#     fig, ax = plt.subplots()
+#     im = ax.imshow(image, cmap='gray', vmin=-1.0, vmax=1.0)
+#     div = make_axes_locatable(ax)
+#     cax = div.append_axes('right', size='5%', pad=0.05)
+#     plt.colorbar(im, cax=cax)
+#
+#     image_height, image_width = image.shape
+#     # image_resolution = 3.3  # µm / pixel  # fixed by the eye (monkey)
+#     image_resolution = 0.8  # µm / pixel  # fixed by the eye (salamander)
+#
+#     # frame_shape = frame_height, frame_width = 1080, 1920  # fixed by the DMD
+#     frame_shape = frame_height, frame_width = 768, 768  # fixed by the DMD
+#     # frame_resolution = 0.42  # µm / pixel  # fixed by the setup  # TODO check this value.
+#     frame_resolution = 0.7  # µm / pixel
+#
+#     background_luminance = 0.5
+#
+#     if frame_resolution <= image_resolution:
+#         # Up-sample the image (interpolation).
+#         image_x = image_resolution * np.arange(0, image_height)
+#         image_x = image_x - np.mean(image_x)
+#         image_y = image_resolution * np.arange(0, image_width)
+#         image_y = image_y - np.mean(image_y)
+#         image_z = image
+#         spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
+#         frame_x = frame_resolution * np.arange(0, frame_height)
+#         frame_x = frame_x - np.mean(frame_x)
+#         mask_x = np.logical_and(
+#             np.min(image_x) - 0.5 * image_resolution <= frame_x,
+#             frame_x <= np.max(image_x) + 0.5 * image_resolution
+#         )
+#         frame_y = frame_resolution * np.arange(0, frame_width)
+#         frame_y = frame_y - np.mean(frame_y)
+#         mask_y = np.logical_and(
+#             np.min(image_y) - 0.5 * image_resolution <= frame_y,
+#             frame_y <= np.max(image_y) + 0.5 * image_resolution
+#         )
+#         frame_z = spline(frame_x[mask_x], frame_y[mask_y])
+#         frame_i_min = np.min(np.nonzero(mask_x))
+#         frame_i_max = np.max(np.nonzero(mask_x)) + 1
+#         frame_j_min = np.min(np.nonzero(mask_y))
+#         frame_j_max = np.max(np.nonzero(mask_y)) + 1
+#         frame = background_luminance * np.ones(frame_shape, dtype=np.float)
+#         frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
+#     else:
+#         # Down-sample the image (decimation).
+#         image_frequency = 1.0 / image_resolution
+#         frame_frequency = 1.0 / frame_resolution
+#         cutoff = frame_frequency / image_frequency
+#         sigma = math.sqrt(2.0 * math.log(2.0)) / (2.0 * math.pi * cutoff)
+#         filtered_image = scipy.ndimage.gaussian_filter(image, sigma=sigma)
+#         # see https://en.wikipedia.org/wiki/Gaussian_filter for a justification of this formula
+#         image_x = image_resolution * np.arange(0, image_height)
+#         image_x = image_x - np.mean(image_x)
+#         image_y = image_resolution * np.arange(0, image_width)
+#         image_y = image_y - np.mean(image_y)
+#         image_z = filtered_image
+#         spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
+#         frame_x = frame_resolution * np.arange(0, frame_height)
+#         frame_x = frame_x - np.mean(frame_x)
+#         mask_x = np.logical_and(
+#             np.min(image_x) - 0.5 * image_resolution <= frame_x,
+#             frame_x <= np.max(image_x) + 0.5 * image_resolution
+#         )
+#         frame_y = frame_resolution * np.arange(0, frame_width)
+#         frame_y = frame_y - np.mean(frame_y)
+#         mask_y = np.logical_and(
+#             np.min(image_y) - 0.5 * image_resolution <= frame_y,
+#             frame_y <= np.max(image_y) + 0.5 * image_resolution
+#         )
+#         frame_z = spline(frame_x[mask_x], frame_y[mask_y])
+#         frame_i_min = np.min(np.nonzero(mask_x))
+#         frame_i_max = np.max(np.nonzero(mask_x)) + 1
+#         frame_j_min = np.min(np.nonzero(mask_y))
+#         frame_j_max = np.max(np.nonzero(mask_y)) + 1
+#         frame = background_luminance * np.ones(frame_shape, dtype=np.float)
+#         frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z
+#
+#     mean_luminance = 0.5  # arb. unit
+#     std_luminance = 0.06  # arb. unit
+#
+#     frame_roi = frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max]
+#     print("mean (luminance): {}".format(np.mean(frame_roi)))
+#     print("std (luminance): {}".format(np.std(frame_roi)))
+#     print("min (luminance): {}".format(np.min(frame_roi)))
+#     print("max (luminance): {}".format(np.max(frame_roi)))
+#     frame_roi = frame_roi - np.mean(frame_roi)
+#     frame_roi = frame_roi / np.std(frame_roi)
+#     frame_roi = frame_roi * std_luminance
+#     frame_roi = frame_roi + mean_luminance
+#     print("mean (luminance): {}".format(np.mean(frame_roi)))
+#     print("std (luminance): {}".format(np.std(frame_roi)))
+#     print("min (luminance): {}".format(np.min(frame_roi)))
+#     print("max (luminance): {}".format(np.max(frame_roi)))
+#     frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_roi
+#
+#     # TODO clean the previous experimental lines..
+#
+#     # Plot reference frame.
+#     fig, ax = plt.subplots()
+#     im = ax.imshow(frame, cmap='gray', vmin=0.0, vmax=1.0)
+#     div = make_axes_locatable(ax)
+#     cax = div.append_axes('right', size='2%', pad=0.05)
+#     plt.colorbar(im, cax=cax)
+#
+#     # TODO clean the following experimental lines.
+#
+#     # TODO create the image perturbations (i.e. the checkerboards).
+#     # perturbation_shape = perturbation_height, perturbation_width = (14, 26)
+#     perturbation_shape = perturbation_height, perturbation_width = (10, 10)
+#     perturbation = np.random.choice(a=[-1.0, +1.0], size=perturbation_shape)
+#     perturbation_resolution = 50.0  # µm / pixel
+#     perturbation_x = perturbation_resolution * np.arange(0, perturbation_height)
+#     perturbation_x = perturbation_x - np.mean(perturbation_x)
+#     perturbation_y = perturbation_resolution * np.arange(0, perturbation_width)
+#     perturbation_y = perturbation_y - np.mean(perturbation_y)
+#     perturbation_z = perturbation
+#     perturbation_x_, perturbation_y_ = np.meshgrid(perturbation_x, perturbation_y)
+#     perturbation_points = np.stack((perturbation_x_.flatten(), perturbation_y_.flatten()), axis=-1)
+#     perturbation_data = perturbation_z.flatten()
+#     interpolate = scipy.interpolate.NearestNDInterpolator(perturbation_points, perturbation_data)
+#     mask_x = np.logical_and(
+#         np.min(perturbation_x) - 0.5 * perturbation_resolution <= frame_x,
+#         frame_x <= np.max(perturbation_x) + 0.5 * perturbation_resolution
+#     )
+#     mask_y = np.logical_and(
+#         np.min(perturbation_y) - 0.5 * perturbation_resolution <= frame_y,
+#         frame_y <= np.max(perturbation_y) + 0.5 * perturbation_resolution
+#     )
+#     frame_x_, frame_y_ = np.meshgrid(frame_x[mask_x], frame_y[mask_y])
+#     frame_x_ = frame_x_.transpose().flatten()
+#     frame_y_ = frame_y_.transpose().flatten()
+#     frame_points_ = np.stack((frame_x_, frame_y_), axis=-1)
+#     frame_data_ = interpolate(frame_points_)
+#     frame_z_ = np.reshape(frame_data_, (frame_x[mask_x].size, frame_y[mask_y].size))
+#     frame_i_min = np.min(np.nonzero(mask_x))
+#     frame_i_max = np.max(np.nonzero(mask_x)) + 1
+#     frame_j_min = np.min(np.nonzero(mask_y))
+#     frame_j_max = np.max(np.nonzero(mask_y)) + 1
+#     perturbation_frame = np.zeros(frame_shape, dtype=np.float)
+#     perturbation_frame[frame_i_min:frame_i_max, frame_j_min:frame_j_max] = frame_z_
+#
+#     # Plot perturbation image.
+#     fig, ax = plt.subplots()
+#     im = ax.imshow(perturbation_frame, cmap='gray', vmin=-1.0, vmax=+1.0)
+#     div = make_axes_locatable(ax)
+#     cax = div.append_axes('right', size='2%', pad=0.05)
+#     plt.colorbar(im, cax=cax)
+#
+#     # TODO create the perturbed images.
+#
+#     # Create perturbed reference image.
+#     perturbation_amplitude = - 2.0 / (2.0 ** 8)
+#     frame_ = frame + perturbation_amplitude * perturbation_frame
+#
+#     # Plot perturbed frame.
+#     fig, ax = plt.subplots()
+#     im = ax.imshow(frame_, cmap='gray', vmin=0.0, vmax=1.0)
+#     div = make_axes_locatable(ax)
+#     cax = div.append_axes('right', size='2%', pad=0.05)
+#     plt.colorbar(im, cax=cax)
+#
+#     # TODO generate all the reference frames and all the perturbed frames.
+#     # TODO 1. get the list of reference images
+#     # TODO 2. get the list of perturbation patterns (or number of perturbation patterns to generate)
+#     # TODO 3. get the list of perturbation amplitudes
+#     # TODO 4. generate all the reference frames
+#     # TODO 5. generate all the perturbed frames
+#
+#     # TODO create the .bin file.
+#     # TODO 1. open the .bin file.
+#     # TODO 2. for each reference frame
+#     # TODO   - load the frame
+#     # TODO   - append the frame to the .bin file
+#     # TODO 3. for each perturbation
+#     # TODO   - for each reference frame
+#     # TODO     - load the corresponding perturbed frame
+#     # TODO     - append the frame to the .bin file
+#     # TODO 4. close the .bin file
+#
+#     # TODO create the interleaving of the perturbed images.
+#     # TODO 1. list all the possible combinations (i.e. reference image, perturbation pattern, perturbation amplitude)
+#     # TODO 2. for each repetition
+#     # TODO   - sample a random order of the combinations
+#     # TODO   - append this sequence to ...
+#
+#     # TODO create the .vec file.
+#
+#     # TODO clean the previous experimental lines.
+#
+#     plt.show()  # TODO save images to disk instead.
+#
+#     raise NotImplementedError()
 
 
 def get_checkerboard_locator(index, scheme='file', path=None):
@@ -500,10 +519,16 @@ def get_frame(image):
         spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
         frame_x = frame_resolution * np.arange(0, frame_height)
         frame_x = frame_x - np.mean(frame_x)
-        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
+        mask_x = np.logical_and(
+            np.min(image_x) - 0.5 * image_resolution <= frame_x,
+            frame_x <= np.max(image_x) + 0.5 * image_resolution
+        )
         frame_y = frame_resolution * np.arange(0, frame_width)
         frame_y = frame_y - np.mean(frame_y)
-        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
+        mask_y = np.logical_and(
+            np.min(image_y) - 0.5 * image_resolution <= frame_y,
+            frame_y <= np.max(image_y) + 0.5 * image_resolution
+        )
         frame_z = spline(frame_x[mask_x], frame_y[mask_y])
         frame_i_min = np.min(np.nonzero(mask_x))
         frame_i_max = np.max(np.nonzero(mask_x)) + 1
@@ -527,10 +552,16 @@ def get_frame(image):
         spline = scipy.interpolate.RectBivariateSpline(image_x, image_y, image_z, kx=1, ky=1)
         frame_x = frame_resolution * np.arange(0, frame_height)
         frame_x = frame_x - np.mean(frame_x)
-        mask_x = np.logical_and(np.min(image_x) - 0.5 * image_resolution <= frame_x, frame_x <= np.max(image_x) + 0.5 * image_resolution)
+        mask_x = np.logical_and(
+            np.min(image_x) - 0.5 * image_resolution <= frame_x,
+            frame_x <= np.max(image_x) + 0.5 * image_resolution
+        )
         frame_y = frame_resolution * np.arange(0, frame_width)
         frame_y = frame_y - np.mean(frame_y)
-        mask_y = np.logical_and(np.min(image_y) - 0.5 * image_resolution <= frame_y, frame_y <= np.max(image_y) + 0.5 * image_resolution)
+        mask_y = np.logical_and(
+            np.min(image_y) - 0.5 * image_resolution <= frame_y,
+            frame_y <= np.max(image_y) + 0.5 * image_resolution
+        )
         frame_z = spline(frame_x[mask_x], frame_y[mask_y])
         frame_i_min = np.min(np.nonzero(mask_x))
         frame_i_max = np.max(np.nonzero(mask_x)) + 1
@@ -588,8 +619,14 @@ def get_perturbation_frame(perturbation_image):
     perturbation_points = np.stack((perturbation_x_.flatten(), perturbation_y_.flatten()), axis=-1)
     perturbation_data = perturbation_z.flatten()
     interpolate = scipy.interpolate.NearestNDInterpolator(perturbation_points, perturbation_data)
-    mask_x = np.logical_and(np.min(perturbation_x) - 0.5 * perturbation_resolution <= frame_x, frame_x <= np.max(perturbation_x) + 0.5 * perturbation_resolution)
-    mask_y = np.logical_and(np.min(perturbation_y) - 0.5 * perturbation_resolution <= frame_y, frame_y <= np.max(perturbation_y) + 0.5 * perturbation_resolution)
+    mask_x = np.logical_and(
+        np.min(perturbation_x) - 0.5 * perturbation_resolution <= frame_x,
+        frame_x <= np.max(perturbation_x) + 0.5 * perturbation_resolution
+    )
+    mask_y = np.logical_and(
+        np.min(perturbation_y) - 0.5 * perturbation_resolution <= frame_y,
+        frame_y <= np.max(perturbation_y) + 0.5 * perturbation_resolution
+    )
     frame_x_, frame_y_ = np.meshgrid(frame_x[mask_x], frame_y[mask_y])
     frame_x_ = frame_x_.transpose().flatten()
     frame_y_ = frame_y_.transpose().flatten()
@@ -680,7 +717,7 @@ def generate(args):
 
     _ = args
     # path = tempfile.mkdtemp()
-    path = '/tmp/tmps5xrjpxh'
+    path = '/tmp/tmps5xrjpxh'  # TODO transform into parameter.
     if not os.path.isdir(path):
         os.makedirs(path)
 
@@ -696,17 +733,17 @@ def generate(args):
 
     # reference_images_indices = list(range(1, 101))
     # reference_images_indices = [5, 31, 39, 46]  # a selection of promising images
-    reference_images_indices = [5, 31, 46]
+    reference_images_indices = [5, 31, 46]  # TODO transform into parameter.
     for index in reference_images_indices:
         collect_reference_image(index, path=reference_images_path)
 
     # perturbation_patterns_indices = list(range(1, 2 + 1))
-    perturbation_patterns_indices = list(range(1, 18 + 1))
+    perturbation_patterns_indices = list(range(1, 18 + 1))  # TODO transform into parameter.
     for index in perturbation_patterns_indices:
         collect_perturbation_pattern(index, path=perturbation_patterns_path)
 
     # perturbation_amplitudes_indices = [5, 10]
-    perturbation_amplitudes_indices = [2, 4, 7, 10, 14, 18, 23, 28]
+    perturbation_amplitudes_indices = [2, 4, 7, 10, 14, 18, 23, 28]  # TODO transform into parameter.
     perturbation_amplitudes = {
         k: float(k) / np.iinfo(np.uint8).max
         for k in perturbation_amplitudes_indices
@@ -723,15 +760,16 @@ def generate(args):
     nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
     nb_images = 1 + nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
 
-    combinations = get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices)
+    combinations = get_combinations(reference_images_indices, perturbation_patterns_indices,
+                                    perturbation_amplitudes_indices)
 
     # display_rate = 50.0  # Hz
-    display_rate = 40.0  # Hz
+    display_rate = 40.0  # Hz  # TODO transform into parameter.
     # frame_duration = 0.3  # s
-    frame_duration = 0.3  # s
+    frame_duration = 0.3  # s  # TODO transform into parameter.
 
     # nb_repetitions = 1
-    nb_repetitions = 20
+    nb_repetitions = 20  # TODO transform into parameter.
     nb_combinations = len(combinations)
     nb_frame_displays = int(display_rate * frame_duration)
     assert display_rate * frame_duration == float(nb_frame_displays)
@@ -739,6 +777,7 @@ def generate(args):
 
     display_time = float(nb_displays) / display_rate
     print("display time: {} s ({} min)".format(display_time, display_time / 60.0))
+    # TODO improve feedback.
 
     # Create .bin file.
     bin_filename = "fipwc.bin"
@@ -778,7 +817,9 @@ def generate(args):
                 print(perturbed_frame.shape)
                 bin_file.append(perturbed_frame)
                 # Save frame as .png file.
-                perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}_a{:05d}.png".format(reference_image_index, perturbation_pattern_index, perturbation_amplitude_index)
+                perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}_a{:05d}.png".format(reference_image_index,
+                                                                                          perturbation_pattern_index,
+                                                                                          perturbation_amplitude_index)
                 perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
                 save_frame(perturbed_frame_path, perturbed_frame)
     bin_file.close()
@@ -795,9 +836,9 @@ def generate(args):
         np.random.shuffle(combination_indices)
         for combination_index in combination_indices:
             combination_frame_id = combination_index
-            for k in range(0, nb_frame_displays):
+            for _ in range(0, nb_frame_displays):
                 vec_file.append(combination_frame_id)
-            for k in range(0, nb_frame_displays):
+            for _ in range(0, nb_frame_displays):
                 vec_file.append(grey_frame_id)
     vec_file.close()
 
