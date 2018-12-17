@@ -1,5 +1,6 @@
 import argparse
 
+from pystim.test import generate as generate_test
 from pystim.fipwc import generate as generate_fipwc
 from pystim.utils import list_stimuli, configure, initialize, reinitialize
 
@@ -45,6 +46,9 @@ def main():
     subparser_generate = subparsers.add_parser('generate', help="generate help")
     subparser_generate.set_defaults(func=lambda args_: subparser_generate.print_usage())
     subparsers_generate = subparser_generate.add_subparsers(title="positional arguments")
+
+    subparser_generate_test = subparsers_generate.add_parser('test', help='test image')
+    subparser_generate_test.set_defaults(func=generate_test)
 
     subparser_generate_fipwc = subparsers_generate.add_parser('fipwc', help="flashed images perturbed with checkerboards")
     subparser_generate_fipwc.set_defaults(func=generate_fipwc)

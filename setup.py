@@ -5,6 +5,7 @@ packages = [
     'pystim',
 ]
 install_requires = [
+    'pycairo',
     'matplotlib',
     'numpy',
     'Pillow',
