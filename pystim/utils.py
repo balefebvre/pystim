@@ -10,6 +10,7 @@ environment_variable_name = 'PYSTIMPATH'
 def list_stimuli():
 
     stimuli = [
+        'dg',
         'fipwc',
     ]
     # TODO list the stimuli.

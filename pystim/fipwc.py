@@ -1,3 +1,5 @@
+"""Flashed images perturbed with checkerboard"""
+
 import array
 import io
 import math
@@ -843,7 +845,8 @@ def generate(args):
             perturbation_pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
             for perturbation_amplitude_index in perturbation_amplitudes_indices:
                 perturbation_amplitude = perturbation_amplitudes[perturbation_amplitude_index]
-                perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude, config)
+                perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude,
+                                                      config)
                 perturbed_frame = float_frame_to_uint8_frame(perturbed_frame)
                 # Save frame in .bin file.
                 print(perturbed_frame.shape)
