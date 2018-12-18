@@ -9,6 +9,7 @@ from PIL.Image import fromarray
 from pystim.io.bin import open_file as open_bin_file
 from pystim.io.vec import open_file as open_vec_file
 from pystim.utils import handle_arguments_and_configurations
+from pystim.utils import shape, meshgrid
 
 
 name = 'dg'
@@ -30,49 +31,6 @@ default_configuration = {
     'nb_repetitions': 5,
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
 }
-
-
-def linspace(pixel_size, width=None, height=None):
-
-    dmd_width_in_px = 1920  # px
-    dmd_height_in_px = 1080  # px
-    dmd_width_in_um = dmd_width_in_px * pixel_size
-    dmd_height_in_um = dmd_height_in_px * pixel_size
-
-    x = np.linspace(0.0, dmd_width_in_um, num=dmd_width_in_px, endpoint=False) + 0.5 * pixel_size - 0.5 * dmd_width_in_um
-    y = np.linspace(0.0, dmd_height_in_um, num=dmd_height_in_px, endpoint=False) + 0.5 * pixel_size - 0.5 * dmd_height_in_um
-
-    frame_width = width if width is not None else dmd_width_in_um
-    frame_height = height if height is not None else dmd_height_in_um
-    frame_horizontal_offset = 0.0  # µm
-    frame_vertical_offset = 0.0  # µm
-
-    x_min = frame_horizontal_offset - frame_width / 2.0
-    x_max = frame_horizontal_offset + frame_width / 2.0
-    y_min = frame_vertical_offset - frame_height / 2.0
-    y_max = frame_vertical_offset + frame_height / 2.0
-
-    xm = np.logical_and(x_min <= x, x <= x_max)
-    ym = np.logical_and(y_min <= y, y <= y_max)
-    x = x[xm]
-    y = y[ym]
-
-    return x, y
-
-
-def shape(pixel_size, width=None, height=None):
-
-    x, y = linspace(pixel_size, width=width, height=height)
-
-    return y.size, x.size
-
-
-def meshgrid(pixel_size, width=None, height=None):
-
-    x, y = linspace(pixel_size, width=width, height=height)
-    xv, yv = np.meshgrid(x, y, indexing='xy')
-
-    return xv, yv
 
 
 def get_combinations(spatial_frequencies, speeds, contrasts, directions):

@@ -25,7 +25,7 @@ from pystim.utils import handle_arguments_and_configurations
 name = 'fipwc'
 
 default_configuration = {
-    'path': os.path.join(tempfile.gettempdir(), "pystim"),
+    'path': os.path.join(tempfile.gettempdir(), "pystim", name),
     'reference_images': {
         # 'indices': [5, 31, 39, 46],  # a selection of promising images
         'indices': [5, 31, 46],
