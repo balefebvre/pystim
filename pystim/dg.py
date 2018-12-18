@@ -162,6 +162,18 @@ def get_frame(frame_id, pixel_size, direction=0.0, spatial_frequency=600.0, cont
     return frame
 
 
+def get_permutations(indices, nb_repetitions=1, seed=42):
+
+    np.random.seed(seed)
+
+    permutations = {
+        k: np.random.permutation(indices)
+        for k in range(0, nb_repetitions)
+    }
+
+    return permutations
+
+
 def generate(args):
 
     config = handle_arguments_and_configurations(name, args)
@@ -221,6 +233,10 @@ def generate(args):
     nb_images_per_trial = int(trial_duration * frame_rate)
     nb_images = 1 + nb_images_per_trial * nb_combinations
 
+    # TODO get permutations.
+    combination_indices = list(combinations['combination'].keys())
+    permutations = get_permutations(combination_indices, nb_repetitions=nb_repetitions)
+
     # TODO Create .bin file.
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
@@ -251,11 +267,47 @@ def generate(args):
             # Save frame in .bin file.
             bin_file.append(frame)
             # Save frame as .png file.
-            frame_filename = "frame_c{}_f{}.png".format(combination_index, frame_id)
+            frame_number = 1 + combination_index * nb_images_per_trial + frame_id
+            frame_filename = "frame_{:05d}.png".format(frame_number)
             frame_path = os.path.join(frames_path, frame_filename)
             save_frame(frame_path, frame)
     bin_file.close()
 
+    nb_displays_per_trial = int(np.round(trial_duration * frame_rate))
+    nb_displays_per_intertrial = int(np.round(intertrial_duration * frame_rate))
+
+    nb_trials = nb_combinations * nb_repetitions
+    nb_intertrials = nb_combinations * nb_repetitions  # i.e. one after each trial
+
+    nb_displays = nb_displays_per_trial * nb_trials + nb_displays_per_intertrial * nb_intertrials
+
     # TODO Create .vec file.
+    vec_filename = "{}.vec".format(name)
+    vec_path = os.path.join(path, vec_filename)
+    vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
+    # Append initial trial.
+    frame_id = 0  # grey
+    for _ in range(0, nb_displays_per_trial):
+        vec_file.append(frame_id)
+    # Append intertrial.
+    frame_id = 0
+    for _ in range(0, nb_displays_per_intertrial):
+        vec_file.append(frame_id)
+    # Append repetitions.
+    for k in range(0, nb_repetitions):
+        combination_indices = permutations[k]
+        # Append combination.
+        for combination_index in combination_indices:
+            # Append trial.
+            frame_id = 1 + combination_index  # i.e. shift because of grey frame
+            for _ in range(0, nb_displays_per_trial):
+                vec_file.append(frame_id)
+            # Append intertrial.
+            frame_id = 0
+            for _ in range(0, nb_displays_per_intertrial):
+                vec_file.append(frame_id)
+    vec_file.close()
+
+    # TODO generate description files.
 
     raise NotImplementedError()

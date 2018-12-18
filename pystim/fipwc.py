@@ -864,7 +864,7 @@ def generate(args):
     vec_path = os.path.join(path, vec_filename)
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     grey_frame_id = 0
-    for k in range(0, nb_frame_displays):
+    for _ in range(0, nb_frame_displays):
         vec_file.append(grey_frame_id)
     for k in range(0, nb_repetitions):
         combination_indices = np.array(list(combinations.keys()))
