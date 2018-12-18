@@ -15,9 +15,9 @@ name = 'dg'
 
 default_configuration = {
     'frame': {
-        'rate': 10.0,  # 60.0,  # Hz  # TODO undo.
-        'width': 2000.0,  # µm  # TODO correct.
-        'height': 2000.0,  # µm  # TODO correct.
+        'rate': 60.0,  # Hz
+        'width': 3000.0,  # µm
+        'height': 3000.0,  # µm
         # 'horizontal_offset': 0.0,  # µm
         # 'vertical_offset': 0.0,  # µm
     },
@@ -27,7 +27,7 @@ default_configuration = {
     'directions': [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75],  # rad
     'trial_duration': 5.0,  # s
     'intertrial_duration': 1.67,  # s
-    'nb_repetitions': 1,  # TODO replace with 5.
+    'nb_repetitions': 5,
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
 }
 
@@ -39,8 +39,8 @@ def linspace(pixel_size, width=None, height=None):
     dmd_width_in_um = dmd_width_in_px * pixel_size
     dmd_height_in_um = dmd_height_in_px * pixel_size
 
-    x = np.linspace(0.0, dmd_width_in_um, num=dmd_width_in_px, endpoint=False) - 0.5 * dmd_width_in_um
-    y = np.linspace(0.0, dmd_height_in_um, num=dmd_height_in_px, endpoint=False) - 0.5 * dmd_height_in_um
+    x = np.linspace(0.0, dmd_width_in_um, num=dmd_width_in_px, endpoint=False) + 0.5 * pixel_size - 0.5 * dmd_width_in_um
+    y = np.linspace(0.0, dmd_height_in_um, num=dmd_height_in_px, endpoint=False) + 0.5 * pixel_size - 0.5 * dmd_height_in_um
 
     frame_width = width if width is not None else dmd_width_in_um
     frame_height = height if height is not None else dmd_height_in_um
@@ -232,6 +232,7 @@ def generate(args):
 
     nb_images_per_trial = int(trial_duration * frame_rate)
     nb_images = 1 + nb_images_per_trial * nb_combinations
+    print("nb_images: {}".format(nb_images))
 
     # TODO get permutations.
     combination_indices = list(combinations['combination'].keys())
@@ -241,12 +242,14 @@ def generate(args):
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
     bin_path = os.path.join(path, bin_filename)
-    bin_file = open_bin_file(bin_path, nb_images)
+    bin_file = open_bin_file(bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px)
     # Get grey frame.
     grey_frame = get_grey_frame(frame_width_in_px, frame_height_in_px)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
+    print(grey_frame.shape)
     # Save frame in .bin file.
     bin_file.append(grey_frame)
+    bin_file.flush()
     # Save frame as .png file.
     grey_frame_filename = "grey.png"
     grey_frame_path = os.path.join(frames_path, grey_frame_filename)
@@ -265,7 +268,9 @@ def generate(args):
             frame = get_frame(frame_id, pixel_size, spatial_frequency=sf, speed=s, contrast=c, direction=d, width=frame_width, height=frame_height, rate=frame_rate)
             frame = float_frame_to_uint8_frame(frame)
             # Save frame in .bin file.
+            print(frame.shape)
             bin_file.append(frame)
+            bin_file.flush()
             # Save frame as .png file.
             frame_number = 1 + combination_index * nb_images_per_trial + frame_id
             frame_filename = "frame_{:05d}.png".format(frame_number)
@@ -276,8 +281,8 @@ def generate(args):
     nb_displays_per_trial = int(np.round(trial_duration * frame_rate))
     nb_displays_per_intertrial = int(np.round(intertrial_duration * frame_rate))
 
-    nb_trials = nb_combinations * nb_repetitions
-    nb_intertrials = nb_combinations * nb_repetitions  # i.e. one after each trial
+    nb_trials = 1 + nb_combinations * nb_repetitions
+    nb_intertrials = 1 + nb_combinations * nb_repetitions  # i.e. one after each trial
 
     nb_displays = nb_displays_per_trial * nb_trials + nb_displays_per_intertrial * nb_intertrials
 
@@ -299,8 +304,8 @@ def generate(args):
         # Append combination.
         for combination_index in combination_indices:
             # Append trial.
-            frame_id = 1 + combination_index  # i.e. shift because of grey frame
-            for _ in range(0, nb_displays_per_trial):
+            for l in range(0, nb_images_per_trial):
+                frame_id = 1 + combination_index * nb_images_per_trial + l
                 vec_file.append(frame_id)
             # Append intertrial.
             frame_id = 0
@@ -309,5 +314,9 @@ def generate(args):
     vec_file.close()
 
     # TODO generate description files.
+    # TODO generate the condition files.
+    # TODO generate the combination files.
+    # TODO generate the perturbation files.
 
-    raise NotImplementedError()
+    return
+    # raise NotImplementedError()

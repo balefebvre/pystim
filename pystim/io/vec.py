@@ -48,9 +48,15 @@ class VecFile:
 
         return
 
-    def close(self):
+    def flush(self):
 
         os.fsync(self._file.fileno())  # force write
+
+        return
+
+    def close(self):
+
+        self.flush()
         self._file.close()
 
         return
