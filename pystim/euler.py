@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import tempfile
@@ -36,6 +37,7 @@ default_configuration = {
             'd_post': 2.0,  # s
             'nb_periods': 16,
         },
+        'contrast': 1.0,  # arb. unit
     },
     'initial_adaptation_duration': 1.0,  # s
     'intertrial_duration': 2.0,  # s
@@ -63,6 +65,7 @@ def get_pattern(config, frame_rate):
     assert (frequency_chirp_d * frame_rate).is_integer()
     assert (frequency_chirp_d_post * frame_rate).is_integer()
     frequency_chirp_duration = frequency_chirp_d_ante + frequency_chirp_d + frequency_chirp_d_post
+    frequency_chirp_nb_periods = frequency_chirp_config['nb_periods']
 
     amplitude_chirp_config = config['amplitude_chirp']
     amplitude_chirp_d_ante = amplitude_chirp_config['d_ante']
@@ -72,16 +75,49 @@ def get_pattern(config, frame_rate):
     assert (amplitude_chirp_d * frame_rate).is_integer()
     assert (amplitude_chirp_d_post * frame_rate).is_integer()
     amplitude_chirp_duration = amplitude_chirp_d_ante + amplitude_chirp_d + amplitude_chirp_d_post
+    amplitude_chirp_nb_periods = amplitude_chirp_config['nb_periods']
 
     duration = step_duration + frequency_chirp_duration + amplitude_chirp_duration
+
+    contrast = config['contrast']
 
     nb_displays = int(np.round(duration * frame_rate))
     pattern = 0.5 * np.ones(nb_displays, dtype=np.float)
 
     # Create step.
-    i_min = int(np.round(step_d_ante))
-    i_max = int(np.round(step_d_ante + step_d))
-    pattern[i_min:i_max+1] = 1.0
+    i_0 = int(np.round(0.0 * frame_rate))
+    i_ante = i_0 + int(np.round(step_d_ante * frame_rate))
+    i = i_ante + int(np.round(step_d * frame_rate))
+    i_post = i + int(np.round(step_d_post * frame_rate))
+    pattern[i_0:i_ante] = 0.5 - contrast / 2.0
+    pattern[i_ante:i] = 0.5 + contrast / 2.0
+    pattern[i:i_post] = 0.5 - contrast / 2.0
+
+    # Create frequency chirp.
+    i_0 = int(np.round(step_duration * frame_rate))
+    i_ante = i_0 + int(np.round(frequency_chirp_d_ante * frame_rate))
+    i = i_ante + int(np.round(frequency_chirp_d * frame_rate))
+    i_post = i + int(np.round(frequency_chirp_d_post * frame_rate))
+    t = np.linspace(0.0, frequency_chirp_d, num=i-i_ante, endpoint=False)
+    amplitude = 1.0
+    omega = 2.0 * np.pi * (np.linspace(0.0, float(frequency_chirp_nb_periods), num=i-i_ante, endpoint=False) / frequency_chirp_d)
+    frequency_chirp = 0.5 + 0.5 * amplitude * np.sin(omega * t)
+    pattern[i_0:i_ante] = 0.5
+    pattern[i_ante:i] = frequency_chirp
+    pattern[i:i_post] = 0.5
+
+    # Create amplitude chirp.
+    i_0 = int(np.round((step_duration + frequency_chirp_duration) * frame_rate))
+    i_ante = i_0 + int(np.round(amplitude_chirp_d_ante * frame_rate))
+    i = i_ante + int(np.round(amplitude_chirp_d * frame_rate))
+    i_post = i + int(np.round(amplitude_chirp_d_post * frame_rate))
+    t = np.linspace(0.0, amplitude_chirp_d, num=i-i_ante, endpoint=False)
+    amplitude = np.linspace(0.0, 1.0, num=i-i_ante, endpoint=False)
+    omega = 2.0 * np.pi * (float(amplitude_chirp_nb_periods) / amplitude_chirp_d)
+    amplitude_chirp = 0.5 + 0.5 * amplitude * np.sin(omega * t)
+    pattern[i_0:i_ante] = 0.5
+    pattern[i_ante:i] = amplitude_chirp
+    pattern[i:i_post] = 0.5
 
     return pattern
 
@@ -96,6 +132,22 @@ def digitize(pattern):
     indices = np.digitize(pattern, bins)
 
     return indices
+
+
+def plot_pattern(pattern, frame_rate):
+
+    x = np.arange(0, len(pattern), dtype=np.float) / frame_rate
+    y = pattern
+
+    fig, ax = plt.subplots()
+    ax.step(x, y, label='post')
+    ax.grid()
+    ax.set_xlabel("time (s)")
+    ax.set_ylabel("luminance (arb. unit)")
+    ax.set_title("Pattern profile")
+    fig.tight_layout()
+
+    return fig, ax
 
 
 def generate(args):
@@ -121,7 +173,6 @@ def generate(args):
 
     frame_height_in_px, frame_width_in_px = shape(pixel_size, width=frame_width_in_um, height=frame_height_in_um)
 
-    # TODO create .bin file.
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
     bin_path = os.path.join(path, bin_filename)
@@ -139,6 +190,13 @@ def generate(args):
     intertrial_duration = config['intertrial_duration']
     assert (intertrial_duration * frame_rate).is_integer()
 
+    # Plot pattern profile.
+    plot_filename = "{}.pdf".format(name)
+    plot_path = os.path.join(path, plot_filename)
+    fig, ax = plot_pattern(pattern, frame_rate)
+    fig.savefig(plot_path)
+    plt.close(fig)
+
     # nb_displays_per_trial = int(np.round(trial_duration * frame_rate))
     nb_displays_per_trial = pattern.size
     nb_displays_per_intertrial = int(np.round(intertrial_duration * frame_rate))
@@ -149,7 +207,6 @@ def generate(args):
 
     frame_indices = digitize(pattern)
 
-    # TODO create .vec file.
     # Create .vec file.
     vec_filename = "{}.vec".format(name)
     vec_path = os.path.join(path, vec_filename)
