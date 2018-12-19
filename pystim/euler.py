@@ -166,6 +166,7 @@ def generate(args):
     path = config['path']
     if not os.path.isdir(path):
         os.makedirs(path)
+    print(path)
 
     dtype = np.uint8
     nb_grey_levels = np.iinfo(dtype).max - np.iinfo(dtype).min + 1

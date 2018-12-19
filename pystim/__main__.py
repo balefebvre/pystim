@@ -1,6 +1,7 @@
 import argparse
 
 from pystim.test import generate as generate_test
+from pystim.square import generate as generate_square
 from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
 from pystim.fipwc import generate as generate_fipwc
@@ -52,6 +53,10 @@ def main():
     # Test.
     subparser_generate_test = subparsers_generate.add_parser('test', help='test help')
     subparser_generate_test.set_defaults(func=generate_test)
+
+    # Square.
+    subparser_generate_square = subparsers_generate.add_parser('square', help='square help')
+    subparser_generate_square.set_defaults(func=generate_square)
 
     # Euler's full-field.
     subparser_generate_euler = subparsers_generate.add_parser('euler', help='euler help')

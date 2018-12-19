@@ -11,6 +11,8 @@ environment_variable_name = 'PYSTIMPATH'
 def list_stimuli():
 
     stimuli = [
+        'test',
+        'square',
         'euler',
         'dg',
         'fipwc',
@@ -69,7 +71,10 @@ def initialize(args):
 def reinitialize(args):
 
     path = get_default_configuration_path()
-    shutil.rmtree(path)
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
     initialize(args)
 
     return
