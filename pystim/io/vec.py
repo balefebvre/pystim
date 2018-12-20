@@ -18,6 +18,7 @@ class VecFile:
         self._nb_displays = nb_displays
 
         self._file = open(self._path, mode='w')
+        self._counter = -1
 
         self._write_header()
 
@@ -46,7 +47,13 @@ class VecFile:
         else:
             raise TypeError("unexpected object type: {}".format(type(object_)))
 
+        self._counter += 1
+
         return
+
+    def get_display_index(self):
+
+        return self._counter
 
     def flush(self):
 

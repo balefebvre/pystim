@@ -8,6 +8,7 @@ install_requires = [
     'pycairo',
     'matplotlib',
     'numpy',
+    'pandas',
     'Pillow',
     'scipy',
 ]

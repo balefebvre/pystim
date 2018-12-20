@@ -1,5 +1,4 @@
 import itertools
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import tempfile
@@ -8,6 +7,7 @@ from PIL.Image import fromarray
 
 from pystim.io.bin import open_file as open_bin_file
 from pystim.io.vec import open_file as open_vec_file
+from pystim.io.csv import open_file as open_csv_file
 from pystim.utils import handle_arguments_and_configurations
 from pystim.utils import shape, meshgrid
 
@@ -17,8 +17,8 @@ name = 'dg'
 default_configuration = {
     'frame': {
         'rate': 60.0,  # Hz
-        'width': 3000.0,  # µm
-        'height': 3000.0,  # µm
+        'width': 3024.0,  # µm
+        'height': 3024.0,  # µm
         # 'horizontal_offset': 0.0,  # µm
         # 'vertical_offset': 0.0,  # µm
     },
@@ -28,7 +28,7 @@ default_configuration = {
     'directions': [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75],  # rad
     'trial_duration': 5.0,  # s
     'intertrial_duration': 1.67,  # s
-    'nb_repetitions': 5,
+    'nb_repetitions': 20,  # TODO change to 5 (following Gollisch)?
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
 }
 
@@ -138,7 +138,7 @@ def generate(args):
 
     # Experimental rig parameters.
     # TODO 1. Get pixel size (i.e. ? µm).
-    pixel_size = 3.75  # µm
+    pixel_size = 3.5  # µm
 
     # Display parameters.
     # TODO 1. Get frame rate (i.e. 60 Hz).
@@ -175,6 +175,14 @@ def generate(args):
     if not os.path.isdir(frames_path):
         os.makedirs(frames_path)
 
+    for condition_name in ['spatial_frequencies', 'speeds', 'contrasts', 'directions']:
+        csv_filename = "{}_{}.csv".format(name, condition_name)
+        csv_path = os.path.join(path, csv_filename)
+        csv_file = open_csv_file(csv_path, columns=[condition_name])
+        for condition_value in config[condition_name]:
+            csv_file.append(**{condition_name: condition_value})
+        csv_file.close()
+
     frame_height_in_px, frame_width_in_px = shape(pixel_size, width=frame_width, height=frame_height)
     print(frame_height_in_px)
     print(frame_width_in_px)
@@ -182,6 +190,22 @@ def generate(args):
     # TODO Get combinations.
     combinations = get_combinations(spatial_frequencies, speeds, contrasts, directions)
     nb_combinations = len(combinations['combination'])
+
+    # TODO Create .csv file.
+    csv_filename = "{}_combinations.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = [
+        "{}_id".format(condition['name'])
+        for condition in combinations['condition'].values()
+    ]
+    csv_file = open_csv_file(csv_path, columns=columns)
+    for combination_index in combinations['combination']:
+        kwargs = {
+            '{}_id'.format(combinations['condition'][condition_id]['name']): combinations['combination'][combination_index][condition_id]
+            for condition_id in combinations['condition']
+        }
+        csv_file.append(**kwargs)
+    csv_file.close()
 
     nb_trials = nb_combinations * nb_repetitions
     stimulus_duration = nb_trials * trial_duration + (nb_trials - 1) * intertrial_duration
@@ -244,10 +268,13 @@ def generate(args):
 
     nb_displays = nb_displays_per_trial * nb_trials + nb_displays_per_intertrial * nb_intertrials
 
-    # TODO Create .vec file.
+    # Create .vec and .csv file.
     vec_filename = "{}.vec".format(name)
     vec_path = os.path.join(path, vec_filename)
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
+    csv_filename = "{}.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max', 'combination_id', 'repetition_id'])
     # Append initial trial.
     frame_id = 0  # grey
     for _ in range(0, nb_displays_per_trial):
@@ -257,18 +284,22 @@ def generate(args):
     for _ in range(0, nb_displays_per_intertrial):
         vec_file.append(frame_id)
     # Append repetitions.
-    for k in range(0, nb_repetitions):
-        combination_indices = permutations[k]
+    for repetition_index in range(0, nb_repetitions):
+        combination_indices = permutations[repetition_index]
         # Append combination.
         for combination_index in combination_indices:
             # Append trial.
+            k_min = vec_file.get_display_index() + 1
             for l in range(0, nb_images_per_trial):
                 frame_id = 1 + combination_index * nb_images_per_trial + l
                 vec_file.append(frame_id)
+            k_max = vec_file.get_display_index()
+            csv_file.append(k_min=k_min, k_max=k_max, combination_id=combination_index, repetition_id=repetition_index)
             # Append intertrial.
             frame_id = 0
             for _ in range(0, nb_displays_per_intertrial):
                 vec_file.append(frame_id)
+    csv_file.close()
     vec_file.close()
 
     # TODO generate description files.

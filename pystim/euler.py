@@ -5,6 +5,7 @@ import tempfile
 
 from pystim.io.bin import open_file as open_bin_file
 from pystim.io.vec import open_file as open_vec_file
+from pystim.io.csv import open_file as open_csv_file
 from pystim.utils import handle_arguments_and_configurations
 from pystim.utils import shape
 from pystim.utils import get_grey_frame
@@ -15,8 +16,8 @@ name = 'euler'
 
 default_configuration = {
     'frame': {
-        'width': 3000.0,  # µm
-        'height': 3000.0,  # µm
+        'width': 3024.0,  # µm
+        'height': 3024.0,  # µm
         'rate': 60.0,  # Hz
     },
     'pattern': {
@@ -39,9 +40,9 @@ default_configuration = {
         },
         'contrast': 1.0,  # arb. unit
     },
-    'initial_adaptation_duration': 1.0,  # s
+    'initial_adaptation_duration': 5.0,  # s
     'intertrial_duration': 2.0,  # s
-    'nb_repetitions': 2,  # TODO replace with 25.
+    'nb_repetitions': 20,
     'path': os.path.join(tempfile.gettempdir(), "pystim", name)
 }
 
@@ -125,7 +126,7 @@ def get_pattern(config, frame_rate):
 def digitize(pattern):
 
     dtype = np.uint8
-    nb_bins = np.iinfo(dtype).max - np.iinfo(dtype).min
+    nb_bins = np.iinfo(dtype).max - np.iinfo(dtype).min + 1
     bins = np.linspace(0.0, 1.0, num=nb_bins, endpoint=False)
     bins = bins[1:]  # remove first element
 
@@ -154,7 +155,7 @@ def generate(args):
 
     config = handle_arguments_and_configurations(name, args)
 
-    pixel_size = 3.75  # µm
+    pixel_size = 3.5  # µm
     # dmd_width = 1920  # px
     # dmd_height = 1080  # px
 
@@ -189,6 +190,7 @@ def generate(args):
     pattern_config = config['pattern']
     pattern = get_pattern(pattern_config, frame_rate)
     intertrial_duration = config['intertrial_duration']
+    initial_adaptation_duration = config['initial_adaptation_duration']
     assert (intertrial_duration * frame_rate).is_integer()
 
     # Plot pattern profile.
@@ -201,27 +203,42 @@ def generate(args):
     # nb_displays_per_trial = int(np.round(trial_duration * frame_rate))
     nb_displays_per_trial = pattern.size
     nb_displays_per_intertrial = int(np.round(intertrial_duration * frame_rate))
+    nb_displays_in_initial_adaptation = int(np.round(initial_adaptation_duration * frame_rate))
 
     nb_trials = nb_repetitions
-    nb_intertrials = nb_trials - 1
-    nb_displays = nb_trials * nb_displays_per_trial + nb_intertrials * nb_displays_per_intertrial
+    nb_intertrials = nb_trials
+    nb_displays = \
+        nb_displays_in_initial_adaptation \
+        + nb_trials * nb_displays_per_trial \
+        + nb_intertrials * nb_displays_per_intertrial
 
     frame_indices = digitize(pattern)
 
-    # Create .vec file.
+    # Create .vec and .csv files.
     vec_filename = "{}.vec".format(name)
     vec_path = os.path.join(path, vec_filename)
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
-    # TODO add adaptation.
+    csv_filename = "{}.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max'])
+    # Append initial adaptation.
+    for _ in range(0, nb_displays_in_initial_adaptation):
+        frame_index = 0
+        vec_file.append(frame_index)
+    # For each repetition...
     for _ in range(0, nb_repetitions):
+        k_min = vec_file.get_display_index() + 1
+        # Append trial.
         for k in range(0, nb_displays_per_trial):
             frame_id = frame_indices[k]
             vec_file.append(frame_id)
-            vec_file.flush()
+        k_max = vec_file.get_display_index()
+        csv_file.append(k_min=k_min, k_maw=k_max)
+        # Append intertrial.
         for _ in range(0, nb_displays_per_intertrial):
             frame_id = 0
             vec_file.append(frame_id)
-            vec_file.flush()
+    csv_file.close()
     vec_file.close()
 
     return
