@@ -40,12 +40,15 @@ default_configuration = {
     'display_rate': 40.0,  # Hz
     'frame': {
         # 'width': 1920',  # DMD's limit
-        'width': 768,
+        # 'width': 768,
+        'width': 864,
         # 'height': 1080,  # DMD's limit
-        'height': 768,
+        # 'height': 768,
+        'height': 864,
         'duration': 0.3,  # s
         # 'resolution': 0.42, # µm / pixel  # fixed by the setup
-        'resolution': 0.7,  # µm / pixel  # fixed by the setup
+        # 'resolution': 0.7,  # µm / pixel  # fixed by the setup
+        'resolution': 3.5,  # µm / pixel  # fixed by the setup
     },
     # 'frame_width': 768,  # TODO remove.
     # 'frame_height': 768,  # TODO remove.
@@ -761,6 +764,7 @@ def generate(args):
     path = config['path']
     if not os.path.isdir(path):
         os.makedirs(path)
+    print(path)
 
     reference_images_path = os.path.join(path, "reference_images")
     if not os.path.isdir(reference_images_path):
