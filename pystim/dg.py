@@ -16,7 +16,7 @@ name = 'dg'
 
 default_configuration = {
     'frame': {
-        'rate': 60.0,  # Hz
+        'rate': 50.0,  # Hz
         'width': 3024.0,  # µm
         'height': 3024.0,  # µm
         # 'horizontal_offset': 0.0,  # µm

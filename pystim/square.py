@@ -15,7 +15,7 @@ default_configuration = {
     'frame': {
         'width': 3024.00,  # µm
         'height': 3024.00,  # µm
-        'rate': 60.0,  # Hz
+        'rate': 50.0,  # Hz
     },
     'size': float(16) * 30.0,  # µm
     'duration': 2.0,  # s
