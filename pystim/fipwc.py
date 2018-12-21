@@ -36,16 +36,16 @@ default_configuration = {
         # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        'pattern_indices': list(range(0, 2)),  # TODO correct.
-        # 'pattern_indices': list(range(0, 18)),
-        'amplitudes': [float(a) / float(256) for a in [10, 28]],  # TODO correct.
-        # 'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],
+        # 'pattern_indices': list(range(0, 2)),
+        'pattern_indices': list(range(0, 18)),
+        # 'amplitudes': [float(a) / float(256) for a in [10, 28]],
+        'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],
         # 'nb_horizontal_checks': 60,
         # 'nb_vertical_checks': 60,
-        'nb_horizontal_checks': 40,
-        'nb_vertical_checks': 40,
+        'nb_horizontal_checks': 57,
+        'nb_vertical_checks': 57,
         # 'resolution': 50.0,  # µm / pixel
-        'resolution': 75.0,  # µm / pixel
+        'resolution': float(15) * 3.5,  # µm / pixel
     },
     'display_rate': 50.0,  # Hz
     'frame': {
