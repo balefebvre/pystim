@@ -28,7 +28,7 @@ default_configuration = {
     'directions': [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75],  # rad
     'trial_duration': 5.0,  # s
     'intertrial_duration': 1.67,  # s
-    'nb_repetitions': 20,  # TODO change to 5 (following Gollisch)?
+    'nb_repetitions': 20,  # TODO change to 5 (following Tim)?
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
 }
 
@@ -137,35 +137,20 @@ def generate(args):
     config = handle_arguments_and_configurations(name, args)
 
     # Experimental rig parameters.
-    # TODO 1. Get pixel size (i.e. ? µm).
     pixel_size = 3.5  # µm
 
     # Display parameters.
-    # TODO 1. Get frame rate (i.e. 60 Hz).
     frame_rate = config['frame']['rate']
-    # TODO 2. Get frame width (i.e. ? µm).
     frame_width = config['frame']['width']
-    # TODO 3. Get frame height (i.e. ? µm).
     frame_height = config['frame']['height']
-    # # TODO 4. Get frame horizontal offset (i.e. 0.0 µm).
-    # frame_horizontal_offset = config['frame']['horizontal_offset']
-    # # TODO 5. Get frame vertical offset (i.e. 0.0 µm).
-    # frame_vertical_offset = config['frame']['vertical_offset']
 
     # Stimulus parameters.
-    # TODO 1. Get spatial frequency (i.e. 600.0 µm).
     spatial_frequencies = config['spatial_frequencies']
-    # TODO 2. Get speed (i.e. 450.0 µm / s or 0.75 Hz).
     speeds = config['speeds']
-    # TODO 3. Get contrast (i.e. 100.0 %).
     contrasts = config['contrasts']
-    # TODO 3. Get directions (i.e. 0.0, 0.25, 0.50, 0.75, 1.0, 1.25, 1.5, 1.75).
     directions = config['directions']
-    # TODO 4. Get trial duration (i.e. 5.0 s).
     trial_duration = config['trial_duration']
-    # TODO 5. Get intertrial duration (i.e. 1.67 s).
     intertrial_duration = config['intertrial_duration']
-    # TODO 6. Get number of repetitions (i.e. 5).
     nb_repetitions = config['nb_repetitions']
 
     path = config['path']
@@ -187,11 +172,11 @@ def generate(args):
     print(frame_height_in_px)
     print(frame_width_in_px)
 
-    # TODO Get combinations.
+    # Get combinations.
     combinations = get_combinations(spatial_frequencies, speeds, contrasts, directions)
     nb_combinations = len(combinations['combination'])
 
-    # TODO Create .csv file.
+    # Create .csv file for combinations.
     csv_filename = "{}_combinations.csv".format(name)
     csv_path = os.path.join(path, csv_filename)
     columns = [
@@ -216,11 +201,10 @@ def generate(args):
     nb_images = 1 + nb_images_per_trial * nb_combinations
     print("nb_images: {}".format(nb_images))
 
-    # TODO get permutations.
+    # Get permutations.
     combination_indices = list(combinations['combination'].keys())
     permutations = get_permutations(combination_indices, nb_repetitions=nb_repetitions)
 
-    # TODO Create .bin file.
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
     bin_path = os.path.join(path, bin_filename)
@@ -302,10 +286,4 @@ def generate(args):
     csv_file.close()
     vec_file.close()
 
-    # TODO generate description files.
-    # TODO generate the condition files.
-    # TODO generate the combination files.
-    # TODO generate the perturbation files.
-
     return
-    # raise NotImplementedError()

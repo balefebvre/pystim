@@ -19,6 +19,7 @@ from urllib.request import urlopen, urlretrieve
 
 from pystim.io.bin import open_file as open_bin_file
 from pystim.io.vec import open_file as open_vec_file
+from pystim.io.csv import open_file as open_csv_file
 from pystim.utils import handle_arguments_and_configurations
 from pystim.utils import get_grey_frame
 
@@ -35,10 +36,10 @@ default_configuration = {
         # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        'pattern_indices': list(range(1, 2 + 1)),  # TODO correct.
-        # 'pattern_indices': list(range(1, 18 + 1)),
-        'amplitude_indices': [10, 28],  # TODO correct.
-        # 'amplitude_indices': [2, 4, 7, 10, 14, 18, 23, 28],
+        'pattern_indices': list(range(0, 2)),  # TODO correct.
+        # 'pattern_indices': list(range(0, 18)),
+        'amplitudes': [float(a) / float(256) for a in [10, 28]],  # TODO correct.
+        # 'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],
         # 'nb_horizontal_checks': 60,
         # 'nb_vertical_checks': 60,
         'nb_horizontal_checks': 40,
@@ -581,6 +582,18 @@ def save_frame(path, frame):
     return
 
 
+def get_permutations(indices, nb_repetitions=1, seed=42):
+
+    np.random.seed(seed)
+
+    permutations = {
+        k: np.random.permutation(indices)
+        for k in range(0, nb_repetitions)
+    }
+
+    return permutations
+
+
 def generate(args):
 
     config = handle_arguments_and_configurations(name, args)
@@ -610,6 +623,16 @@ def generate(args):
         dataset, index = reference_images[str(reference_index)]
         collect_reference_image(reference_index, dataset=dataset, index=index, path=reference_images_path ,config=config)
 
+    # Create .csv file for reference_image.
+    csv_filename = "{}_reference_images.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = ['reference_image_path']
+    csv_file = open_csv_file(csv_path, columns=columns)
+    for index in reference_indices:
+        reference_image_path = os.path.join("reference_images", "reference_{:05d}.png".format(index))
+        csv_file.append(reference_image_path=reference_image_path)
+    csv_file.close()
+
     nb_horizontal_checks = config['perturbations']['nb_horizontal_checks']
     nb_vertical_checks = config['perturbations']['nb_vertical_checks']
 
@@ -618,19 +641,27 @@ def generate(args):
         collect_perturbation_pattern(index, nb_horizontal_checks=nb_horizontal_checks,
                                      nb_vertical_checks=nb_vertical_checks, path=perturbation_patterns_path)
 
-    perturbation_amplitudes_indices = config['perturbations']['amplitude_indices']
-    perturbation_amplitudes = {
-        k: float(k) / np.iinfo(np.uint8).max
-        for k in perturbation_amplitudes_indices
-    }
+    # Create .csv file for perturbation pattern.
+    csv_filename = "{}_perturbation_patterns.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = ['perturbation_pattern_path']
+    csv_file = open_csv_file(csv_path, columns=columns)
+    for index in perturbation_patterns_indices:
+        perturbation_pattern_path = os.path.join("perturbation_patterns", "checkerboard{:05d}.png".format(index))
+        csv_file.append(perturbation_pattern_path=perturbation_pattern_path)
+    csv_file.close()
 
-    # TODO remove the following lines?
-    # for index in reference_images_indices:
-    #     _ = load_reference_image(index, reference_images_path)
+    perturbation_amplitudes = config['perturbations']['amplitudes']
+    perturbation_amplitudes_indices = [k for k, _ in enumerate(perturbation_amplitudes)]
 
-    # TODO remove the following lines?
-    # for index in perturbation_patterns_indices:
-    #     _ = load_perturbation_pattern(index, perturbation_patterns_path)
+    # Create .csv file for perturbation amplitudes.
+    csv_filename = "{}_perturbation_amplitudes.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = ['perturbation_amplitude']
+    csv_file = open_csv_file(csv_path, columns=columns)
+    for perturbation_amplitude in perturbation_amplitudes:
+        csv_file.append(perturbation_amplitude=perturbation_amplitude)
+    csv_file.close()
 
     nb_reference_images = len(reference_indices)
     nb_perturbation_patterns = len(perturbation_patterns_indices)
@@ -639,6 +670,21 @@ def generate(args):
 
     combinations = get_combinations(reference_indices, perturbation_patterns_indices,
                                     perturbation_amplitudes_indices)
+
+    # TODO Create .csv file.
+    csv_filename = "{}_combinations.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = ['reference_id', 'perturbation_pattern_id', 'perturbation_amplitude_id']
+    csv_file = open_csv_file(csv_path, columns=columns)
+    for combination_index in combinations:
+        combination = combinations[combination_index]
+        kwargs = {
+            'reference_id': reference_indices[combination[0]],
+            'perturbation_pattern_id': perturbation_patterns_indices[combination[1]],
+            'perturbation_amplitude_id': perturbation_amplitudes_indices[combination[2]],
+        }
+        csv_file.append(**kwargs)
+    csv_file.close()
 
     # TODO fix the permutations.
 
@@ -656,6 +702,9 @@ def generate(args):
     display_time = float(nb_displays) / display_rate
     print("display time: {} s ({} min)".format(display_time, display_time / 60.0))
     # TODO improve feedback.
+
+    combination_indices = list(combinations)
+    permutations = get_permutations(combination_indices, nb_repetitions=nb_repetitions)
 
     # Create .bin file.
     bin_filename = "fipwc.bin"
@@ -699,26 +748,32 @@ def generate(args):
                 save_frame(perturbed_frame_path, perturbed_frame)
     bin_file.close()
 
-    # Create .vec file.
-    vec_filename = "fipwc.vec"
+    # Create .vec and .csv files.
+    vec_filename = "{}.vec".format(name)
     vec_path = os.path.join(path, vec_filename)
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
+    csv_filename = "{}.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max', 'combination_id', 'repetition_id'])
     # Append adaptation.
     grey_frame_id = 0
     for _ in range(0, nb_frame_displays):
         vec_file.append(grey_frame_id)
     # For each repetition...
-    for k in range(0, nb_repetitions):
-        combination_indices = np.array(list(combinations.keys()))
-        np.random.shuffle(combination_indices)  # TODO remove.
+    for repetition_index in range(0, nb_repetitions):
+        combination_indices = permutations[repetition_index]
         for combination_index in combination_indices:
             combination_frame_id = combination_index
+            k_min = vec_file.get_display_index() + 1
             # Append trial.
             for _ in range(0, nb_frame_displays):
                 vec_file.append(combination_frame_id)
+            k_max = vec_file.get_display_index()
+            csv_file.append(k_min=k_min, k_max=k_max, combination_id=combination_index, repetition_id=repetition_index)
             # Append intertrial.
             for _ in range(0, nb_frame_displays):
                 vec_file.append(grey_frame_id)
+    csv_file.close()
     vec_file.close()
 
     return
