@@ -616,12 +616,15 @@ def generate(args):
         os.makedirs(frames_path)
 
     reference_images = config['reference_images']
+    print(config)
+    print(reference_images)
     reference_indices = [
-        int(key) for key in reference_images.keys()
+        int(key)
+        for key in reference_images.keys()
     ]
     for reference_index in reference_indices:
         dataset, index = reference_images[str(reference_index)]
-        collect_reference_image(reference_index, dataset=dataset, index=index, path=reference_images_path ,config=config)
+        collect_reference_image(reference_index, dataset=dataset, index=index, path=reference_images_path, config=config)
 
     # Create .csv file for reference_image.
     csv_filename = "{}_reference_images.csv".format(name)
