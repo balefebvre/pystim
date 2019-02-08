@@ -32,7 +32,16 @@ Datasets of natural images:
 
 ## TODO
 
-- Add default path.
-- Handle parameters (global, local (file), local (command line)).
-- Add controls (perturbed grey image).
-- Generate files used for the analysis.
+### ...
+- [ ] Add default path.
+- [ ] Handle parameters (global, local (file), local (command line)).
+- [ ] Add controls (perturbed grey image).
+- [ ] Generate files used for the analysis.
+- [ ] Save configurations used during stimulus generations.
+
+### 2019 02 08
+- [x] Create a `euler_luminance_profile.csv` file.
+    - [x] Use uint8 instead of float for luminance value.
+- [x] Check that `k_max` is always inclusive in CSV files.
+    - [x] Especially for `euler.csv`.
+- [x] Check if repetitions in `euler.csv` are always of the same length (+10?).

@@ -193,6 +193,16 @@ def generate(args):
     initial_adaptation_duration = config['initial_adaptation_duration']
     assert (intertrial_duration * frame_rate).is_integer()
 
+    # Create .csv file for pattern profile.
+    csv_filename = "{}_luminance_profile.csv".format(name)
+    csv_path = os.path.join(path, csv_filename)
+    columns = ['luminance']
+    csv_file = open_csv_file(csv_path, columns=columns)
+    luminances = digitize(pattern)
+    for luminance in luminances:
+        csv_file.append(luminance=luminance)
+    csv_file.close()
+
     # Plot pattern profile.
     plot_filename = "{}.pdf".format(name)
     plot_path = os.path.join(path, plot_filename)
@@ -220,7 +230,7 @@ def generate(args):
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     csv_filename = "{}.csv".format(name)
     csv_path = os.path.join(path, csv_filename)
-    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max'])
+    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max', 'combination_id'])
     # Append initial adaptation.
     for _ in range(0, nb_displays_in_initial_adaptation):
         frame_index = 0
@@ -233,12 +243,17 @@ def generate(args):
             frame_id = frame_indices[k]
             vec_file.append(frame_id)
         k_max = vec_file.get_display_index()
-        csv_file.append(k_min=k_min, k_maw=k_max)
+        csv_file.append(k_min=k_min, k_max=k_max, combination_id=0)
         # Append intertrial.
         for _ in range(0, nb_displays_per_intertrial):
             frame_id = 0
             vec_file.append(frame_id)
     csv_file.close()
     vec_file.close()
+
+    # Print the total duration.
+    duration = float(nb_displays) / frame_rate
+    print("duration: {} s".format(duration))
+    print("duration: {} min".format(duration / 60.0))
 
     return
