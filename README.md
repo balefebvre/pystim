@@ -45,3 +45,13 @@ Datasets of natural images:
 - [x] Check that `k_max` is always inclusive in CSV files.
     - [x] Especially for `euler.csv`.
 - [x] Check if repetitions in `euler.csv` are always of the same length (+10?).
+- [ ] Improve the flashed images.
+    - [x] Add negative contrasts.
+        - [x] Check the generation of perturbed frames.
+    - [x] Correct the generation of `fipwc_combinations.csv`.
+    - [ ] Change slightly the perturbations
+        - [ ] Freeze only some of the perturbations.
+            - How many (less than the number of dimensions)?
+        - [ ] Complete with random perturbations.
+    - [x] *(option)* Correct check overflows.
+        - Always use an even number of checks (horizontally and vertically).

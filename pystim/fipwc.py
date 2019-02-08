@@ -36,16 +36,20 @@ default_configuration = {
         # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        # 'pattern_indices': list(range(0, 2)),
-        'pattern_indices': list(range(0, 18)),
-        # 'amplitudes': [float(a) / float(256) for a in [10, 28]],
-        'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],
+        'pattern_indices': list(range(0, 2)),
+        # 'pattern_indices': list(range(0, 18)),  # TODO
+        # 'amplitudes': [float(a) / float(256) for a in [10, 28]],  # TODO remove this line?
+        'amplitudes': [float(a) / float(256) for a in [-28, +28]],
+        # 'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],  # TODO
         # 'nb_horizontal_checks': 60,
         # 'nb_vertical_checks': 60,
-        'nb_horizontal_checks': 57,
-        'nb_vertical_checks': 57,
+        # 'nb_horizontal_checks': 57,
+        # 'nb_vertical_checks': 57,
+        'nb_horizontal_checks': 56,
+        'nb_vertical_checks': 56,
         # 'resolution': 50.0,  # µm / pixel
         'resolution': float(15) * 3.5,  # µm / pixel
+        'with_random_patterns': True,
     },
     'display_rate': 50.0,  # Hz
     'frame': {
@@ -61,7 +65,8 @@ default_configuration = {
     'mean_luminance': 0.5,  # arb. unit
     # 'std_luminance': 0.06,  # arb. unit
     'std_luminance': 0.2,  # arb. unit
-    'nb_repetitions': 20,
+    # 'nb_repetitions': 20,  # TODO
+    'nb_repetitions': 2,
 }
 
 
@@ -539,11 +544,15 @@ def get_perturbation_frame(perturbation_image, config, verbose=False):
 
 def float_frame_to_uint8_frame(float_frame):
 
+    # Rescale pixel values.
     dtype = np.uint8
     dinfo = np.iinfo(dtype)
-    float_frame = float_frame * dinfo.max
-    float_frame[float_frame < dinfo.min] = dinfo.min
-    float_frame[dinfo.max + 1 <= float_frame] = dinfo.max
+    nb_levels = (dinfo.max - dinfo.min + 1)
+    float_frame = float(nb_levels) * float_frame
+    # Process saturating pixels.
+    float_frame[float_frame < float(dinfo.min)] = float(dinfo.min)
+    float_frame[float(dinfo.max + 1) <= float_frame] = float(dinfo.max)
+    # Convert pixel types.
     uint8_frame = float_frame.astype(dtype)
 
     return uint8_frame
@@ -560,16 +569,30 @@ def get_perturbed_frame(reference_image, perturbation_pattern, perturbation_ampl
 
 def get_combinations(reference_images_indices, perturbation_patterns_indices, perturbation_amplitudes_indices):
 
-    index = 1
+    index = 1  # 0 skipped because it corresponds to the frame used between stimuli
     combinations = {}
 
     for i in reference_images_indices:
-        combinations[index] = (i, 0, 0)
-        index += 1
+        combinations[index] = (i, np.nan, np.nan)  # TODO check if `np.nan` are valid.
+        index +=1
+    for i in reference_images_indices:
         for j in perturbation_patterns_indices:
             for k in perturbation_amplitudes_indices:
                 combinations[index] = (i, j, k)
                 index += 1
+
+    return combinations
+
+
+def get_random_combinations(reference_images_indices, random_perturbation_patterns_indices, nb_combinations):
+
+    index = nb_combinations  # skip deterministic combinations
+    combinations = {}
+
+    for j in random_perturbation_patterns_indices:  # pattern first
+        for i in reference_images_indices:
+            combinations[index] = (i, j, np.nan)
+            index += 1
 
     return combinations
 
@@ -594,6 +617,20 @@ def get_permutations(indices, nb_repetitions=1, seed=42):
     return permutations
 
 
+def get_random_combination_groups(random_combination_indices, nb_repetitions=1):
+
+    nb_combinations = len(random_combination_indices)
+    nb_combinations_per_repetition = nb_combinations // nb_repetitions
+    assert nb_combinations % nb_repetitions == 0, "not nb_combinations ({}) % nb_repetitions ({}) == 0".format(nb_combinations, nb_repetitions)
+
+    groups = {
+        k: random_combination_indices[(k+0)*nb_combinations_per_repetition:(k+1)* nb_combinations_per_repetition]
+        for k in range(0, nb_repetitions)
+    }
+
+    return groups
+
+
 def generate(args):
 
     config = handle_arguments_and_configurations(name, args)
@@ -615,16 +652,31 @@ def generate(args):
     if not os.path.isdir(frames_path):
         os.makedirs(frames_path)
 
+    # Get configuration parameters.
     reference_images = config['reference_images']
-    print(config)
-    print(reference_images)
+    nb_horizontal_checks = config['perturbations']['nb_horizontal_checks']
+    nb_vertical_checks = config['perturbations']['nb_vertical_checks']
+    assert nb_horizontal_checks % 2 == 0, "number of checks should be even (horizontally): {}".format(nb_horizontal_checks)
+    assert nb_vertical_checks % 2 == 0, "number of checks should be even (vertically): {}".format(nb_vertical_checks)
+    with_random_patterns = config['perturbations']['with_random_patterns']
+    perturbation_patterns_indices = config['perturbations']['pattern_indices']
+    perturbation_amplitudes = config['perturbations']['amplitudes']
+    perturbation_amplitudes_indices = [k for k, _ in enumerate(perturbation_amplitudes)]
+    display_rate = config['display_rate']
+    frame_width_in_px = config['frame']['width']
+    frame_height_in_px = config['frame']['height']
+    frame_duration = config['frame']['duration']
+    nb_repetitions = config['nb_repetitions']
+
+    # Collect reference images.
     reference_indices = [
         int(key)
         for key in reference_images.keys()
     ]
     for reference_index in reference_indices:
         dataset, index = reference_images[str(reference_index)]
-        collect_reference_image(reference_index, dataset=dataset, index=index, path=reference_images_path, config=config)
+        collect_reference_image(reference_index, dataset=dataset, index=index,
+                                path=reference_images_path, config=config)
 
     # Create .csv file for reference_image.
     csv_filename = "{}_reference_images.csv".format(name)
@@ -636,11 +688,29 @@ def generate(args):
         csv_file.append(reference_image_path=reference_image_path)
     csv_file.close()
 
-    nb_horizontal_checks = config['perturbations']['nb_horizontal_checks']
-    nb_vertical_checks = config['perturbations']['nb_vertical_checks']
+    # Prepare perturbation pattern indices.
+    if with_random_patterns:
+        # TODO check the following lines!
+        # Compute the number of random patterns.
+        nb_perturbation_patterns = len(perturbation_patterns_indices)
+        nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
+        nb_perturbations = nb_perturbation_patterns * nb_perturbation_amplitudes
+        nb_random_patterns = nb_perturbations * nb_repetitions
+        print("number of random patterns: {}".format(nb_random_patterns))  # TODO remove this line.
+        # Choose the indices of the random patterns.
+        random_patterns_indices = nb_perturbation_patterns + np.arange(0, nb_random_patterns)
+        # Define pattern indices.
+        all_patterns_indices = np.concatenate((perturbation_patterns_indices, random_patterns_indices))
+    else:
+        nb_random_patterns = 0
+        random_patterns_indices = None
+        all_patterns_indices = perturbation_patterns_indices
 
-    perturbation_patterns_indices = config['perturbations']['pattern_indices']
-    for index in perturbation_patterns_indices:
+    # TODO remove the following commented lines?
+    # for index in perturbation_patterns_indices:
+    #     collect_perturbation_pattern(index, nb_horizontal_checks=nb_horizontal_checks,
+    #                                  nb_vertical_checks=nb_vertical_checks, path=perturbation_patterns_path)
+    for index in all_patterns_indices:
         collect_perturbation_pattern(index, nb_horizontal_checks=nb_horizontal_checks,
                                      nb_vertical_checks=nb_vertical_checks, path=perturbation_patterns_path)
 
@@ -649,13 +719,12 @@ def generate(args):
     csv_path = os.path.join(path, csv_filename)
     columns = ['perturbation_pattern_path']
     csv_file = open_csv_file(csv_path, columns=columns)
-    for index in perturbation_patterns_indices:
+    # TODO remove the following commented line?
+    # for index in perturbation_patterns_indices:
+    for index in all_patterns_indices:
         perturbation_pattern_path = os.path.join("perturbation_patterns", "checkerboard{:05d}.png".format(index))
         csv_file.append(perturbation_pattern_path=perturbation_pattern_path)
     csv_file.close()
-
-    perturbation_amplitudes = config['perturbations']['amplitudes']
-    perturbation_amplitudes_indices = [k for k, _ in enumerate(perturbation_amplitudes)]
 
     # Create .csv file for perturbation amplitudes.
     csv_filename = "{}_perturbation_amplitudes.csv".format(name)
@@ -666,41 +735,66 @@ def generate(args):
         csv_file.append(perturbation_amplitude=perturbation_amplitude)
     csv_file.close()
 
+    # Compute the number of images.
     nb_reference_images = len(reference_indices)
     nb_perturbation_patterns = len(perturbation_patterns_indices)
     nb_perturbation_amplitudes = len(perturbation_amplitudes_indices)
     nb_images = 1 + nb_reference_images * (1 + nb_perturbation_patterns * nb_perturbation_amplitudes)
+    if with_random_patterns:
+        nb_images = nb_images + nb_reference_images * nb_random_patterns  # TODO check this line!
 
     combinations = get_combinations(reference_indices, perturbation_patterns_indices,
                                     perturbation_amplitudes_indices)
 
-    # TODO Create .csv file.
+    if with_random_patterns:
+        nb_deterministic_combinations = len(combinations) + 1  # +1 to take inter-stimulus frame into account
+        random_combinations = get_random_combinations(reference_indices, random_patterns_indices, nb_deterministic_combinations)
+    else:
+        random_combinations = None
+
+    # Create .csv file.
     csv_filename = "{}_combinations.csv".format(name)
     csv_path = os.path.join(path, csv_filename)
     columns = ['reference_id', 'perturbation_pattern_id', 'perturbation_amplitude_id']
-    csv_file = open_csv_file(csv_path, columns=columns)
+    csv_file = open_csv_file(csv_path, columns=columns, dtype='Int64')
     for combination_index in combinations:
         combination = combinations[combination_index]
+        # TODO remove the following commented lines?
+        # kwargs = {
+        #     'reference_id': reference_indices[combination[0]],
+        #     'perturbation_pattern_id': perturbation_patterns_indices[combination[1]],
+        #     'perturbation_amplitude_id': perturbation_amplitudes_indices[combination[2]],
+        # }
+        reference_id, perturbation_pattern_id, perturbation_amplitude_id = combination
         kwargs = {
-            'reference_id': reference_indices[combination[0]],
-            'perturbation_pattern_id': perturbation_patterns_indices[combination[1]],
-            'perturbation_amplitude_id': perturbation_amplitudes_indices[combination[2]],
+            'reference_id': reference_id,
+            'perturbation_pattern_id': perturbation_pattern_id,
+            'perturbation_amplitude_id': perturbation_amplitude_id,
         }
         csv_file.append(**kwargs)
+    # TODO check the following lines!
+    # Add random pattern (if necessary).
+    if with_random_patterns:
+        for combination_index in random_combinations:
+            combination = random_combinations[combination_index]
+            reference_id, pattern_id, amplitude_id = combination
+            kwargs = {
+                'reference_id': reference_id,
+                'perturbation_pattern_id': pattern_id,
+                'perturbation_amplitude_id': amplitude_id,
+            }
+            csv_file.append(**kwargs)
     csv_file.close()
 
-    # TODO fix the permutations.
+    # TODO fix the permutations?
 
-    display_rate = config['display_rate']
-    frame_width_in_px = config['frame']['width']
-    frame_height_in_px = config['frame']['height']
-    frame_duration = config['frame']['duration']
-
-    nb_repetitions = config['nb_repetitions']
     nb_combinations = len(combinations)
     nb_frame_displays = int(display_rate * frame_duration)
     assert display_rate * frame_duration == float(nb_frame_displays)
-    nb_displays = nb_frame_displays + nb_repetitions * nb_combinations * 2 * nb_frame_displays
+    nb_displays = nb_frame_displays + nb_repetitions * nb_combinations * (2 * nb_frame_displays)
+    if with_random_patterns:
+        nb_random_combinations = len(random_combinations)
+        nb_displays = nb_displays + nb_random_combinations * (2 * nb_frame_displays)
 
     display_time = float(nb_displays) / display_rate
     print("display time: {} s ({} min)".format(display_time, display_time / 60.0))
@@ -709,19 +803,26 @@ def generate(args):
     combination_indices = list(combinations)
     permutations = get_permutations(combination_indices, nb_repetitions=nb_repetitions)
 
+    if with_random_patterns:
+        random_combination_indices = list(random_combinations)
+        random_combination_groups = get_random_combination_groups(random_combination_indices, nb_repetitions=nb_repetitions)
+    else:
+        random_combination_groups = None
+
     # Create .bin file.
     bin_filename = "fipwc.bin"
     bin_path = os.path.join(path, bin_filename)
     bin_file = open_bin_file(bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px)
-    # Get grey frame.
+    # Save grey frame.
     grey_frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=0.5)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
-    # Save frame in .bin file.
+    # # Save frame in .bin file.
     bin_file.append(grey_frame)
-    # Save frame as .png file.
+    # # Save frame as .png file.
     grey_frame_filename = "grey.png"
     grey_frame_path = os.path.join(frames_path, grey_frame_filename)
     save_frame(grey_frame_path, grey_frame)
+    # Save reference frames.
     for reference_index in reference_indices:
         # Get reference frame.
         reference_image = load_reference_image(reference_index, reference_images_path)
@@ -732,11 +833,13 @@ def generate(args):
         reference_frame_filename = "reference_{:05d}.png".format(reference_index)
         reference_frame_path = os.path.join(frames_path, reference_frame_filename)
         save_frame(reference_frame_path, reference_frame)
+    # Save perturbed frames.
     for reference_index in reference_indices:
         reference_image = load_reference_image(reference_index, reference_images_path)
         for perturbation_pattern_index in perturbation_patterns_indices:
             perturbation_pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
             for perturbation_amplitude_index in perturbation_amplitudes_indices:
+                # Get perturbed frame.
                 perturbation_amplitude = perturbation_amplitudes[perturbation_amplitude_index]
                 perturbed_frame = get_perturbed_frame(reference_image, perturbation_pattern, perturbation_amplitude,
                                                       config)
@@ -749,6 +852,25 @@ def generate(args):
                                                                                           perturbation_amplitude_index)
                 perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
                 save_frame(perturbed_frame_path, perturbed_frame)
+    # TODO check the following lines!
+    # Save randomly perturbed frames (if necessary).
+    if with_random_patterns:
+        for reference_index in reference_indices:
+            reference_image = load_reference_image(reference_index, reference_images_path)
+            for perturbation_pattern_index in random_patterns_indices:
+                pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
+                # Get perturbed frame.
+                amplitude = float(15) / float(256)  # TODO change this value?
+                frame = get_perturbed_frame(reference_image, pattern, amplitude, config)
+                frame = float_frame_to_uint8_frame(frame)
+                # Save frame in .bin file.
+                bin_file.append(frame)
+                # Save frame as .png file.
+                perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}.png".format(reference_index,
+                                                                                  perturbation_pattern_index)
+                perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
+                save_frame(perturbed_frame_path, frame)
+
     bin_file.close()
 
     # Create .vec and .csv files.
@@ -757,13 +879,14 @@ def generate(args):
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     csv_filename = "{}.csv".format(name)
     csv_path = os.path.join(path, csv_filename)
-    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max', 'combination_id', 'repetition_id'])
+    csv_file = open_csv_file(csv_path, columns=['k_min', 'k_max', 'combination_id'])
     # Append adaptation.
     grey_frame_id = 0
     for _ in range(0, nb_frame_displays):
         vec_file.append(grey_frame_id)
     # For each repetition...
     for repetition_index in range(0, nb_repetitions):
+        # Add frozen patterns.
         combination_indices = permutations[repetition_index]
         for combination_index in combination_indices:
             combination_frame_id = combination_index
@@ -772,10 +895,26 @@ def generate(args):
             for _ in range(0, nb_frame_displays):
                 vec_file.append(combination_frame_id)
             k_max = vec_file.get_display_index()
-            csv_file.append(k_min=k_min, k_max=k_max, combination_id=combination_index, repetition_id=repetition_index)
+            csv_file.append(k_min=k_min, k_max=k_max, combination_id=combination_index)
             # Append intertrial.
             for _ in range(0, nb_frame_displays):
                 vec_file.append(grey_frame_id)
+        # TODO add a random pattern.
+        # Add random patterns (if necessary).
+        if with_random_patterns:
+            random_combination_indices = random_combination_groups[repetition_index]
+            for combination_index in random_combination_indices:
+                combination_frame_id = combination_index
+                k_min = vec_file.get_display_index() + 1
+                # Append trial.
+                for _ in range(0, nb_frame_displays):
+                    vec_file.append(combination_frame_id)
+                k_max = vec_file.get_display_index()
+                csv_file.append(k_min=k_min, k_max=k_max, combination_id=combination_index)
+                # Append intertrial.
+                for _ in range(0, nb_frame_displays):
+                    vec_file.append(grey_frame_id)
+
     csv_file.close()
     vec_file.close()
 
