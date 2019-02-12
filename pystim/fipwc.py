@@ -10,6 +10,7 @@ import scipy
 import scipy.interpolate
 import scipy.ndimage
 import tempfile
+import tqdm
 
 # from mpl_toolkits.axes_grid1 import make_axes_locatable
 from PIL.Image import fromarray
@@ -36,11 +37,13 @@ default_configuration = {
         # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        'pattern_indices': list(range(0, 2)),
+        # 'pattern_indices': list(range(0, 2)),
         # 'pattern_indices': list(range(0, 18)),  # TODO
+        'pattern_indices': list(range(0, 9)),  # TODO
         # 'amplitudes': [float(a) / float(256) for a in [10, 28]],  # TODO remove this line?
-        'amplitudes': [float(a) / float(256) for a in [-28, +28]],
+        # 'amplitudes': [float(a) / float(256) for a in [-28, +28]],
         # 'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],  # TODO
+        'amplitudes': [float(a) / float(256) for a in [-30, -20, -15, -10, +10, +15, +20, +30]],
         # 'nb_horizontal_checks': 60,
         # 'nb_vertical_checks': 60,
         # 'nb_horizontal_checks': 57,
@@ -51,7 +54,8 @@ default_configuration = {
         'resolution': float(15) * 3.5,  # µm / pixel
         'with_random_patterns': True,
     },
-    'display_rate': 50.0,  # Hz
+    # 'display_rate': 50.0,  # Hz  # TODO
+    'display_rate': 40.0,  # Hz
     'frame': {
         'width': 864,
         'height': 864,
@@ -65,8 +69,8 @@ default_configuration = {
     'mean_luminance': 0.5,  # arb. unit
     # 'std_luminance': 0.06,  # arb. unit
     'std_luminance': 0.2,  # arb. unit
-    # 'nb_repetitions': 20,  # TODO
-    'nb_repetitions': 2,
+    'nb_repetitions': 10,
+    # 'nb_repetitions': 2,
 }
 
 
@@ -706,13 +710,17 @@ def generate(args):
         random_patterns_indices = None
         all_patterns_indices = perturbation_patterns_indices
 
+    print("Start collecting perturbation patterns...")
+
     # TODO remove the following commented lines?
     # for index in perturbation_patterns_indices:
     #     collect_perturbation_pattern(index, nb_horizontal_checks=nb_horizontal_checks,
     #                                  nb_vertical_checks=nb_vertical_checks, path=perturbation_patterns_path)
-    for index in all_patterns_indices:
+    for index in tqdm.tqdm(all_patterns_indices):
         collect_perturbation_pattern(index, nb_horizontal_checks=nb_horizontal_checks,
                                      nb_vertical_checks=nb_vertical_checks, path=perturbation_patterns_path)
+
+    print("End collecting perturbation patterns.")
 
     # Create .csv file for perturbation pattern.
     csv_filename = "{}_perturbation_patterns.csv".format(name)
@@ -809,6 +817,8 @@ def generate(args):
     else:
         random_combination_groups = None
 
+    print("Start creating .bin file...")
+
     # Create .bin file.
     bin_filename = "fipwc.bin"
     bin_path = os.path.join(path, bin_filename)
@@ -834,7 +844,7 @@ def generate(args):
         reference_frame_path = os.path.join(frames_path, reference_frame_filename)
         save_frame(reference_frame_path, reference_frame)
     # Save perturbed frames.
-    for reference_index in reference_indices:
+    for reference_index in tqdm.tqdm(reference_indices):
         reference_image = load_reference_image(reference_index, reference_images_path)
         for perturbation_pattern_index in perturbation_patterns_indices:
             perturbation_pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
@@ -855,7 +865,7 @@ def generate(args):
     # TODO check the following lines!
     # Save randomly perturbed frames (if necessary).
     if with_random_patterns:
-        for reference_index in reference_indices:
+        for reference_index in tqdm.tqdm(reference_indices):
             reference_image = load_reference_image(reference_index, reference_images_path)
             for perturbation_pattern_index in random_patterns_indices:
                 pattern = load_perturbation_pattern(perturbation_pattern_index, perturbation_patterns_path)
@@ -865,13 +875,18 @@ def generate(args):
                 frame = float_frame_to_uint8_frame(frame)
                 # Save frame in .bin file.
                 bin_file.append(frame)
-                # Save frame as .png file.
-                perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}.png".format(reference_index,
-                                                                                  perturbation_pattern_index)
-                perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
-                save_frame(perturbed_frame_path, frame)
+                # Save frame as .png file (if necessary).
+                if perturbation_pattern_index < 100:
+                    perturbed_frame_filename = "perturbed_r{:05d}_p{:05d}.png".format(reference_index,
+                                                                                      perturbation_pattern_index)
+                    perturbed_frame_path = os.path.join(frames_path, perturbed_frame_filename)
+                    save_frame(perturbed_frame_path, frame)
 
     bin_file.close()
+
+    print("End creating .bin file.")
+
+    print("Start creating .vec and .csv files...")
 
     # Create .vec and .csv files.
     vec_filename = "{}.vec".format(name)
@@ -917,5 +932,7 @@ def generate(args):
 
     csv_file.close()
     vec_file.close()
+
+    print("End creating .vec and .csv files.")
 
     return
