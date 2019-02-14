@@ -11,6 +11,7 @@ install_requires = [
     'pandas',
     'Pillow',
     'scipy',
+    'tqdm',
 ]
 entry_points = {
     'console_scripts': [
