@@ -4,7 +4,11 @@ from pystim.test import generate as generate_test
 from pystim.square import generate as generate_square
 from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
+from pystim.fi import generate as generate_fi
 from pystim.fipwc import generate as generate_fipwc
+
+from pystim.experiments.latest import prepare as prepare_latest
+
 from pystim.utils import list_stimuli, configure, initialize, reinitialize
 
 
@@ -66,9 +70,20 @@ def main():
     subparser_generate_dg = subparsers_generate.add_parser('dg', help='drifting gratings help')
     subparser_generate_dg.set_defaults(func=generate_dg)
 
+    # Flashed images.
+    subparser_generate_fi = subparsers_generate.add_parser('fi', help="flashed images")
+    subparser_generate_fi.set_defaults(func=generate_fi)
+
     # Flashed images perturbed with checkerboard.
     subparser_generate_fipwc = subparsers_generate.add_parser('fipwc', help="flashed images perturbed with checkerboards")
     subparser_generate_fipwc.set_defaults(func=generate_fipwc)
+
+    subparser_prepare = subparsers.add_parser('prepare', help="prepare help")
+    subparser_prepare.set_defaults(func=lambda args_: subparser_prepare.print_usage())
+    subparsers_prepare = subparser_prepare.add_subparsers(title="positional arguments")
+
+    subparser_prepare_latest = subparsers_prepare.add_parser('latest', help="latest help")
+    subparser_prepare_latest.set_defaults(func=prepare_latest)
 
     subparser_check = subparsers.add_parser('check', help="check help")
     subparser_check.set_defaults(func=defaults)

@@ -1,3 +1,4 @@
+import argparse
 import importlib
 import json
 import numpy as np
@@ -15,6 +16,7 @@ def list_stimuli():
         'square',
         'euler',
         'dg',
+        'fi',
         'fipwc',
     ]
     # TODO list the stimuli.
@@ -115,7 +117,12 @@ def handle_arguments_and_configurations(name, args):
 
     global_configuration = load_global_configuration(name)
     local_configuration = load_local_configuration(name)
-    arguments = vars(args)
+    if isinstance(args, argparse.Namespace):
+        arguments = vars(args)
+    elif isinstance(args, dict):
+        arguments = args
+    else:
+        raise TypeError("unsupported type for `args`: {}".format(type(args)))
 
     assert 'func' not in global_configuration
     assert 'func' not in local_configuration
