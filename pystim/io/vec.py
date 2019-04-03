@@ -55,6 +55,8 @@ class VecFile:
 
         return self._counter
 
+    get_display_nb = get_display_index
+
     def flush(self):
 
         os.fsync(self._file.fileno())  # force write

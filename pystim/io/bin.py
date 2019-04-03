@@ -22,8 +22,13 @@ class BinFile:
 
         self._file = open(self._path, mode='w+b',)
         self._nb_bits = 8
+        self._frame_nb = -1
 
         self._write_header()
+
+    def get_frame_nb(self):
+
+        return self._frame_nb
 
     def _write_header(self):
 
@@ -46,6 +51,7 @@ class BinFile:
 
         frame_bytes = frame.tobytes()
         self._file.write(frame_bytes)
+        self._frame_nb += 1
 
         return
 
