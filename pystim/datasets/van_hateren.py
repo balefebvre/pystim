@@ -25,13 +25,16 @@ missing_image_nbs = [
 ]
 
 DTYPE = np.uint16
-height = 1024
-width = 1536
+_HEIGHT = 1024  # px
+_WIDTH = 1536  # px
 
+_ANGULAR_RESOLUTION = 1.0 / 60.0  # °/px
+
+# TODO remove the following lines (deprecated)?
 # sup_value = 6282
 # sup_value = 12564  # i.e. 2*6282=12564, image 980
-sup_value = 25119  # i.e. 2*2*6282=25128, image 1910
-# uint12: 4095, uint13: 8191, uint14: 16383, uint15: 32767, uint16: 65535
+# sup_value = 25119  # i.e. 2*2*6282=25128, image 1910
+# # uint12: 4095, uint13: 8191, uint14: 16383, uint15: 32767, uint16: 65535
 
 # MAX_LUMINANCE = 8669.16  # cd/m²
 MAX_LUMINANCE = 70302.4  # cd/m²
@@ -372,9 +375,9 @@ def load_raw_image(image_nb, format_='iml'):
 
     path = get_path(image_nb, format_=format_)
     if format_ == 'iml':
-        image = load_iml_image(path, DTYPE, width, height)
+        image = load_iml_image(path, DTYPE, _WIDTH, _HEIGHT)
     elif format_ == 'imc':
-        image = load_imc_image(path, DTYPE, width, height)
+        image = load_imc_image(path, DTYPE, _WIDTH, _HEIGHT)
     else:
         raise ValueError("unknown format value: {}".format(format_))
 
@@ -386,7 +389,11 @@ def load_luminance_data(image_nb, format_='iml'):
     image = load_raw_image(image_nb, format_=format_)
     image_settings = load_image_settings(image_nb)
     factor = image_settings['factor']
-    data = factor * image.data.astype('float')
+    data = image.data
+    data = np.flipud(data)
+    data = np.transpose(data)
+    data = data.astype(np.float)
+    data = factor * data
 
     return data
 
@@ -731,3 +738,34 @@ def load_saturation_mask(image_nb, format_='iml'):
     mask = image.data >= saturation_value
 
     return mask
+
+
+def get_horizontal_angles():
+    """Get horizontal visual angles (in °)."""
+
+    x = np.arange(0, _WIDTH)
+    x = x.astype(np.float)
+    x -= np.mean(x)
+    a_x = _ANGULAR_RESOLUTION * x
+
+    return a_x
+
+
+def get_vertical_angles():
+    """Get vertical visual angles (in °)."""
+
+    y = np.arange(0, _HEIGHT)
+    y = y.astype(np.float)
+    y -= np.mean(y)
+    a_y = _ANGULAR_RESOLUTION * y
+
+    return a_y
+
+
+def get_angles():
+
+    a_x = get_horizontal_angles()
+    a_y = get_vertical_angles()
+    a = np.meshgrid(a_x, a_y)
+
+    return a

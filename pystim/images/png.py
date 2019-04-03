@@ -9,7 +9,13 @@ class PNGImage(Image):
     @classmethod
     def load(cls, path):
 
-        raise NotImplementedError
+        image = PIL.Image.open(path, mode='r')
+        data = np.array(image)
+        assert np.issubdtype(data.dtype, np.uint8), data.dtype
+        assert data.ndim == 2
+        image = cls(data)
+
+        return image
 
     def __init__(self, data):
 
