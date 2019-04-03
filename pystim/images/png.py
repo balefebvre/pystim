@@ -32,12 +32,31 @@ class PNGImage(Image):
 
         return np.max(self._data)
 
+    @property
+    def dtype(self):
+
+        return str(self._data.dtype)
+
+    @property
+    def inf(self):
+
+        return np.iinfo(self.dtype).min
+
+    @property
+    def sup(self):
+
+        return np.iinfo(self.dtype).max
+
     def save(self, path):
 
-        # mode = 'L'  # i.e. 8-bit pixels, black and white
-        # image = PIL.Image.fromarray(self._data, mode=mode)
-        image = PIL.Image.fromarray(self._data)
-        image.save(path)
+        if self.dtype == 'uint8':
+            mode = 'L'  # i.e. 8-bit pixels, black and white
+            image = PIL.Image.fromarray(self._data, mode=mode)
+            image.save(path)
+        else:
+            # image = PIL.Image.fromarray(self._data)
+            # image.save(path)
+            raise ValueError("unsupported dtype value: {}".format(self.dtype))
 
         return
 
