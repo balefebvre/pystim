@@ -6,6 +6,8 @@ from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
 from pystim.fi import generate as generate_fi
 from pystim.fipwc import generate as generate_fipwc
+from pystim.fipwfc import generate as generate_fipwfc
+from pystim.fipwrc import generate as generate_fipwrc
 
 from pystim.experiments.latest import prepare as prepare_latest
 
@@ -77,6 +79,14 @@ def main():
     # Flashed images perturbed with checkerboard.
     subparser_generate_fipwc = subparsers_generate.add_parser('fipwc', help="flashed images perturbed with checkerboards")
     subparser_generate_fipwc.set_defaults(func=generate_fipwc)
+
+    # Flashed images perturbed with frozen checkerboards.
+    subparser_generate_fipwfc = subparsers_generate.add_parser('fipwfc', help="flashed images perturbed with frozen checkerboards")
+    subparser_generate_fipwfc.set_defaults(func=generate_fipwfc)
+
+    # Flashed images perturbed with random checkerboards.
+    subparser_generate_fipwrc = subparsers_generate.add_parser('fipwrc', help="flashed images perturbed with random checkerboards")
+    subparser_generate_fipwrc.set_defaults(func=generate_fipwrc)
 
     subparser_prepare = subparsers.add_parser('prepare', help="prepare help")
     subparser_prepare.set_defaults(func=lambda args_: subparser_prepare.print_usage())

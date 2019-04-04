@@ -1,6 +1,5 @@
-from . import datasets
-
-
 __all__ = [
     'datasets',
 ]
+
+from . import *

@@ -18,6 +18,8 @@ def list_stimuli():
         'dg',
         'fi',
         'fipwc',
+        'fipwfc',
+        'fipwrc',
     ]
     # TODO list the stimuli.
 

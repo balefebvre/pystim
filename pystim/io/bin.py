@@ -2,16 +2,16 @@ import numpy as np
 import os
 
 
-def open_file(path, nb_images, frame_width=768, frame_height=768):
+def open_file(path, nb_images, frame_width=768, frame_height=768, reverse=False):
 
-    file = BinFile(path, nb_images, frame_width=frame_width, frame_height=frame_height)
+    file = BinFile(path, nb_images, frame_width=frame_width, frame_height=frame_height, reverse=reverse)
 
     return file
 
 
 class BinFile:
 
-    def __init__(self, path, nb_images, frame_width=768, frame_height=768):
+    def __init__(self, path, nb_images, frame_width=768, frame_height=768, reverse=False):
 
         self._path = path
         self._nb_images = nb_images
@@ -19,6 +19,7 @@ class BinFile:
         self._frame_height = frame_height
         # self._frame_width = 600
         # self._frame_height = 600
+        self._reverse = reverse
 
         self._file = open(self._path, mode='w+b',)
         self._nb_bits = 8
@@ -49,6 +50,8 @@ class BinFile:
 
         assert frame.dtype == np.uint8, "frame.dtype: {}".format(frame.dtype)
 
+        if self._reverse:
+            frame = np.iinfo(np.uint8).max - frame
         frame_bytes = frame.tobytes()
         self._file.write(frame_bytes)
         self._frame_nb += 1

@@ -25,7 +25,9 @@ name = 'fi'
 
 default_configuration = {
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
-    # 'image_nbs': [1, 2],  # TODO remove?
+    # TODO swap the 2 following lines.
+    # 'vh_image_nbs': None,
+    'vh_image_nbs': [1, 3, 4, 694],
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
@@ -33,7 +35,9 @@ default_configuration = {
     'normalized_value_mad': 0.01,
     'display_rate': 40.0,  # Hz
     'adaptation_duration': 5.0,  # s
-    'flash_duration': 0.3,  # s
+    # TODO swap the 2 following lines.
+    # 'flash_duration': 0.3,  # s
+    'flash_duration': 10.0,  # s
     'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
@@ -41,6 +45,7 @@ default_configuration = {
         'duration': 0.3,  # s
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
+    'nb_repetitions': 5,  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
     'seed': 42,
     'verbose': True,
 }
@@ -60,6 +65,8 @@ def generate(args):
         os.makedirs(images_path)
 
     # Get configuration parameters.
+    vh_image_nbs = config['vh_image_nbs']
+    eye_diameter = config['eye_diameter']
     normalized_value_median = config['normalized_value_median']
     normalized_value_mad = config['normalized_value_mad']
     display_rate = config['display_rate']
@@ -69,17 +76,20 @@ def generate(args):
     frame_resolution = config['frame']['resolution']
     frame_width = config['frame']['width']
     frame_height = config['frame']['height']
-    eye_diameter = config['eye_diameter']
+    nb_repetitions = config['nb_repetitions']
     seed = config['seed']
     verbose = config['verbose']
     # TODO complete?
 
     # Fetch van Hateren images.
-    vh.fetch(download_if_missing=False, verbose=verbose)
+    vh.fetch(image_nbs=vh_image_nbs, download_if_missing=False, verbose=verbose)
 
     # Select unsaturated van Hateren image numbers.
-    vh_image_nbs = vh.get_image_nbs()
-    are_saturated = vh.get_are_saturated(verbose=verbose)
+    if vh_image_nbs is None:
+        vh_image_nbs = vh.get_image_nbs()
+    else:
+        vh_image_nbs = np.array(vh_image_nbs)
+    are_saturated = vh.get_are_saturated(image_nbs=vh_image_nbs, verbose=verbose)
     are_unsaturated = np.logical_not(are_saturated)
     assert vh_image_nbs.size == are_unsaturated.size, "{} != {}".format(vh_image_nbs.size, are_unsaturated.size)
     unsaturated_vh_image_nbs = vh_image_nbs[are_unsaturated]
@@ -173,7 +183,6 @@ def generate(args):
     print("End of conditions .csv file creation.")
 
     # Set image ordering of each repetition.
-    nb_repetitions = 5  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
     repetition_orderings = {}
     np.random.seed(seed)
     for repetition_nb in range(0, nb_repetitions):
@@ -188,7 +197,7 @@ def generate(args):
     nb_bin_images = 1 + nb_conditions  # i.e. grey image and other conditions
     bin_frame_nbs = {}
     # Open .bin file.
-    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height)
+    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False)
     # Add grey frame.
     grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
     grey_frame = float_frame_to_uint8_frame(grey_frame)

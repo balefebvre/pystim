@@ -384,15 +384,22 @@ def load_raw_image(image_nb, format_='iml'):
     return image
 
 
-def load_luminance_data(image_nb, format_='iml'):
+def load_data(image_nb, format_='iml'):
 
     image = load_raw_image(image_nb, format_=format_)
-    image_settings = load_image_settings(image_nb)
-    factor = image_settings['factor']
     data = image.data
     data = np.flipud(data)
     data = np.transpose(data)
     data = data.astype(np.float)
+
+    return data
+
+
+def load_luminance_data(image_nb, format_='iml'):
+
+    image_settings = load_image_settings(image_nb)
+    factor = image_settings['factor']
+    data = load_data(image_nb, format_=format_)
     data = factor * data
 
     return data
