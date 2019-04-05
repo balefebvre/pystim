@@ -6,6 +6,7 @@ import re
 import tqdm
 import urllib.request
 import urllib.error
+import warnings
 
 from .base import Bunch
 from .base import get_path as get_base_path
@@ -193,8 +194,11 @@ def fetch(image_nbs=None, format_='iml', download_if_missing=True, verbose=False
     if image_nbs is None:
         image_nbs = get_image_nbs(fetched_only=False)
     else:
-        for image_nb in image_nbs:
-            assert image_nb in all_image_nbs and image_nb not in missing_image_nbs, image_nb
+        image_nbs = np.array([
+            image_nb
+            for image_nb in image_nbs
+            if image_nb in all_image_nbs and image_nb not in missing_image_nbs
+        ])
 
     # Fetch settings.
     path = get_settings_path()
@@ -461,8 +465,14 @@ def load_normalized_image(image_nb, format_='iml', max_luminance=None):
         normalized_luminance_data /= 1.4826 * np.median(np.abs(normalized_luminance_data))
     normalized_luminance_data *= 0.02  # TODO transform into parameter.
     normalized_luminance_data += 0.5  # TODO transform into parameter.
-    assert np.count_nonzero(normalized_luminance_data < 0.0) == 0
-    assert np.count_nonzero(normalized_luminance_data > 1.0) == 0
+    # assert np.count_nonzero(normalized_luminance_data < 0.0) == 0
+    if np.count_nonzero(normalized_luminance_data < 0.0) == 0:
+        warnings.warn("negative normalized luminance values")
+    normalized_luminance_data[normalized_luminance_data < 0.0] = 0.0
+    # assert np.count_nonzero(normalized_luminance_data > 1.0) == 0
+    if np.count_nonzero(normalized_luminance_data > 1.0) == 0:
+        warnings.warn("saturated normalized luminance values")
+    normalized_luminance_data[normalized_luminance_data > 1.0] = 1.0
 
     dtype = 'uint8'
     dinfo = np.iinfo(dtype)

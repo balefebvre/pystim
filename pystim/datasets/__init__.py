@@ -9,6 +9,7 @@ from .van_hateren import fetch as fetch_van_hateren
 
 
 __all__ = [
+    'checkerboard',
     'grey',
     'van_hateren',
     'get_path',

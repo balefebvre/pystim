@@ -27,7 +27,8 @@ default_configuration = {
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
     # TODO swap the 2 following lines.
     # 'vh_image_nbs': None,
-    'vh_image_nbs': [1, 3, 4, 694],
+    # 'vh_image_nbs': [1, 3, 4, 694],
+    'vh_image_nbs': list(range(1, 20)),
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
@@ -94,6 +95,23 @@ def generate(args):
     assert vh_image_nbs.size == are_unsaturated.size, "{} != {}".format(vh_image_nbs.size, are_unsaturated.size)
     unsaturated_vh_image_nbs = vh_image_nbs[are_unsaturated]
 
+    # Select ...
+    mean_luminances = vh.get_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    std_luminances = vh.get_std_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    max_luminances = vh.get_max_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    # TODO remove the following lines?
+    # max_centered_luminances = max_luminances / mean_luminances
+    # # print(np.min(max_centered_luminances))
+    # # print(np.median(max_centered_luminances))
+    # # print(np.max(max_centered_luminances))
+    # are_good = max_centered_luminances <= 8.3581  # TODO correct?
+    max_normalized_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
+    are_good = max_normalized_luminances <= 1.02
+    good_vh_image_nbs = unsaturated_vh_image_nbs[are_good]
+
+    # selected_vh_image_nbs = unsaturated_vh_image_nbs
+    selected_vh_image_nbs = good_vh_image_nbs
+
     # Generate grey image.
     image_filename = "image_{i:04d}.png".format(i=0)
     image_path = os.path.join(images_path, image_filename)
@@ -104,35 +122,43 @@ def generate(args):
         image.save(image_path)
 
     # Extract images from the van Hateren images.
-    for vh_image_nb in tqdm.tqdm(unsaturated_vh_image_nbs):
+    for vh_image_nb in tqdm.tqdm(selected_vh_image_nbs):
         # Check if image already exists.
         image_filename = "image_{i:04d}.png".format(i=vh_image_nb)
         image_path = os.path.join(images_path, image_filename)
-        if os.path.isfile(image_path):
-            continue
+        # TODO uncomment the following lines
+        # if os.path.isfile(image_path):
+        #     continue
         # Cut out central sub-region.
         a_x = vh.get_horizontal_angles()
         a_y = vh.get_vertical_angles()
         luminance_data = vh.load_luminance_data(vh_image_nb)
-        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, luminance_data)
+        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, luminance_data, kx=2, ky=2)
         angular_resolution = math.atan(frame_resolution / eye_diameter) * (180.0 / math.pi)
         a_x = compute_horizontal_angles(width=frame_width, angular_resolution=angular_resolution)
         a_y = compute_vertical_angles(height=frame_height, angular_resolution=angular_resolution)
         a_x, a_y = np.meshgrid(a_x, a_y)
         luminance_data = rbs.ev(a_x, a_y)
         luminance_data = luminance_data.transpose()
-        # Prepare image data.
-        luminance_median = np.median(luminance_data)
-        luminance_mad = np.median(np.abs(luminance_data - luminance_median))
-        centered_luminance_data = luminance_data - luminance_median
-        if luminance_mad > 0.0:
-            centered_n_reduced_luminance_data = centered_luminance_data / luminance_mad
-        else:
-            centered_n_reduced_luminance_data = centered_luminance_data
-        normalized_luminance_data = centered_n_reduced_luminance_data
-        scaled_data = normalized_value_mad * normalized_luminance_data
-        shifted_n_scaled_data = scaled_data + normalized_value_median
-        data = shifted_n_scaled_data
+        # TODO uncomment the following lines?
+        # # Prepare data.
+        # luminance_median = np.median(luminance_data)
+        # luminance_mad = np.median(np.abs(luminance_data - luminance_median))
+        # centered_luminance_data = luminance_data - luminance_median
+        # if luminance_mad > 0.0:
+        #     centered_n_reduced_luminance_data = centered_luminance_data / luminance_mad
+        # else:
+        #     centered_n_reduced_luminance_data = centered_luminance_data
+        # normalized_luminance_data = centered_n_reduced_luminance_data
+        # scaled_data = normalized_value_mad * normalized_luminance_data
+        # shifted_n_scaled_data = scaled_data + normalized_value_median
+        # data = shifted_n_scaled_data
+        # TODO remove the 2 following lines?
+        # scaled_luminance_data = luminance_data / np.mean(luminance_data)
+        # data = scaled_luminance_data / 8.3581
+        normalized_luminance_data = (luminance_data / np.mean(luminance_data) - 1.0) / np.std(luminance_data) + 1.0
+        data = (normalized_luminance_data - 1.0) / 0.02 * 0.8 + 0.2
+        # Prepare image data
         if np.count_nonzero(data < 0.0) > 0:
             string = "some pixels are negative in image {} (consider changing the configuration, 'normalized_value_mad': {})"
             message = string.format(vh_image_nb, normalized_value_mad / ((normalized_value_median - np.min(data)) / (normalized_value_median - 0.0)))
@@ -153,7 +179,7 @@ def generate(args):
     # Set condition numbers and image paths.
     condition_nbs = []
     image_paths = {}
-    for k, vh_image_nb in enumerate(unsaturated_vh_image_nbs):
+    for k, vh_image_nb in enumerate(selected_vh_image_nbs):
         # condition_nb = k + 1
         condition_nb = k
         image_filename = 'image_{i:04d}.png'.format(i=vh_image_nb)
@@ -192,7 +218,7 @@ def generate(args):
 
     # Create .bin file.
     print("Start creating .bin file...")
-    bin_filename = "fi.bin"
+    bin_filename = '{}.bin'.format(name)
     bin_path = os.path.join(base_path, bin_filename)
     nb_bin_images = 1 + nb_conditions  # i.e. grey image and other conditions
     bin_frame_nbs = {}
