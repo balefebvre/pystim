@@ -103,9 +103,9 @@ def generate(args):
     adaptation_duration = config['adaptation_duration']
     flash_duration = config['flash_duration']
     inter_flash_duration = config['inter_flash_duration']
-    frame_resolution = config['frame']['resolution']
     frame_width = config['frame']['width']
     frame_height = config['frame']['height']
+    frame_resolution = config['frame']['resolution']
     nb_unperturbed_flashes_per_image = config['nb_unperturbed_flashes_per_image']
     nb_repetitions = config['nb_repetitions']
     seed = config['seed']
@@ -259,6 +259,7 @@ def generate(args):
     unperturbed_condition_nbs = []
     for image_nb in image_nbs:
         if nb_unperturbed_flashes_per_image > 0:
+            assert condition_nb not in conditions_params
             conditions_params[condition_nb] = collections.OrderedDict([
                 ('image_nb', image_nb),
                 ('pattern_nb', None),
@@ -331,7 +332,7 @@ def generate(args):
     # Set image ordering for each repetition.
     repetition_orderings = collections.OrderedDict()
     np.random.seed(seed)
-    # TODO remove, keep or duplicate unperturbed condition numbers.
+    # # Remove, keep or duplicate unperturbed condition numbers.
     assert isinstance(nb_unperturbed_flashes_per_image, int)
     assert nb_unperturbed_flashes_per_image >= 0
     if nb_unperturbed_flashes_per_image == 0:
@@ -342,7 +343,7 @@ def generate(args):
         selected_condition_nbs = np.concatenate(
             [condition_nbs] + [unperturbed_condition_nbs for _ in range(0, nb_unperturbed_flashes_per_image - 1)]
         )
-
+    # # ...
     for repetition_nb in range(0, nb_repetitions):
         ordering = np.copy(condition_nbs)
         np.random.shuffle(ordering)
@@ -457,7 +458,5 @@ def generate(args):
     vec_file.close()
     # ...
     print("End of .vec file creation.")
-
-    # TODO integrate images without perturbations.
 
     return

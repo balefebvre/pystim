@@ -100,13 +100,15 @@ def generate(args):
     std_luminances = vh.get_std_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
     max_luminances = vh.get_max_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
     # TODO remove the following lines?
-    # max_centered_luminances = max_luminances / mean_luminances
-    # # print(np.min(max_centered_luminances))
-    # # print(np.median(max_centered_luminances))
-    # # print(np.max(max_centered_luminances))
-    # are_good = max_centered_luminances <= 8.3581  # TODO correct?
-    max_normalized_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
-    are_good = max_normalized_luminances <= 1.02
+    max_centered_luminances = max_luminances / mean_luminances
+    # print(np.min(max_centered_luminances))
+    # print(np.median(max_centered_luminances))
+    # print(np.max(max_centered_luminances))
+    are_good = max_centered_luminances <= 8.3581  # TODO correct?
+    # TODO remove the following lines?
+    # max_normalized_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
+    # are_good = max_normalized_luminances <= 1.02
+    # ...
     good_vh_image_nbs = unsaturated_vh_image_nbs[are_good]
 
     # selected_vh_image_nbs = unsaturated_vh_image_nbs
@@ -154,10 +156,11 @@ def generate(args):
         # shifted_n_scaled_data = scaled_data + normalized_value_median
         # data = shifted_n_scaled_data
         # TODO remove the 2 following lines?
-        # scaled_luminance_data = luminance_data / np.mean(luminance_data)
-        # data = scaled_luminance_data / 8.3581
-        normalized_luminance_data = (luminance_data / np.mean(luminance_data) - 1.0) / np.std(luminance_data) + 1.0
-        data = (normalized_luminance_data - 1.0) / 0.02 * 0.8 + 0.2
+        scaled_luminance_data = luminance_data / np.mean(luminance_data)
+        data = scaled_luminance_data / 8.3581
+        # TODO remove the 2 following lines?
+        # normalized_luminance_data = (luminance_data / np.mean(luminance_data) - 1.0) / np.std(luminance_data) + 1.0
+        # data = (normalized_luminance_data - 1.0) / 0.02 * 0.8 + 0.2
         # Prepare image data
         if np.count_nonzero(data < 0.0) > 0:
             string = "some pixels are negative in image {} (consider changing the configuration, 'normalized_value_mad': {})"

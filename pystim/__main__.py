@@ -5,6 +5,7 @@ from pystim.square import generate as generate_square
 from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
 from pystim.fi import generate as generate_fi
+from pystim.fi_comp import generate as generate_fi_comp
 from pystim.fipwc import generate as generate_fipwc
 from pystim.fipwfc import generate as generate_fipwfc
 from pystim.fipwrc import generate as generate_fipwrc
@@ -75,6 +76,10 @@ def main():
     # Flashed images.
     subparser_generate_fi = subparsers_generate.add_parser('fi', help="flashed images")
     subparser_generate_fi.set_defaults(func=generate_fi)
+
+    # Flashed images composition.
+    subparser_generate_fi_comp = subparsers_generate.add_parser('fi_comp', help="flashed images composition")
+    subparser_generate_fi_comp.set_defaults(func=generate_fi_comp)
 
     # Flashed images perturbed with checkerboard.
     subparser_generate_fipwc = subparsers_generate.add_parser('fipwc', help="flashed images perturbed with checkerboards")

@@ -53,8 +53,10 @@ def fetch(image_nbs=None, force=False):
     if image_nbs is None:
         image_nbs = get_image_nbs()
     else:
-        for image_nb in image_nbs:
-            assert image_nb in get_image_nbs()
+        # TODO remove the 2 following lines?
+        # for image_nb in image_nbs:
+        #     assert image_nb in get_image_nbs()
+        pass
 
     for image_nb in image_nbs:
         path = get_path(image_nb)
@@ -86,7 +88,7 @@ def load_data(image_nb, with_borders=0.5):
     data = np.flipud(data)
     data = np.transpose(data)
     data = data.astype(np.float)
-    data = data / 254.0  # 0.0 -> 0 and 1.0 -> 254 such that 0.5 -> 127
+    data = data / 254.0  # 0 -> 0.0 and 254 -> 1.0 such that 127 -> 0.5
     if with_borders:
         width, height = data.shape
         data_ = np.empty((1 + width + 1, 1 + height + 1))

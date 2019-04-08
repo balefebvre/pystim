@@ -17,6 +17,7 @@ def list_stimuli():
         'euler',
         'dg',
         'fi',
+        'fi_comp',
         'fipwc',
         'fipwfc',
         'fipwrc',
