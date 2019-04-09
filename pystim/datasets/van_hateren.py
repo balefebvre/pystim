@@ -671,6 +671,31 @@ def get_mad_luminance(image_nb, format_='iml'):
 get_mad_luminances = repeat_for_each_image(get_mad_luminance)
 
 
+@ImageMetadata.cache('log_mean_luminance')
+def get_log_mean_luminance(image_nb, format_='iml'):
+
+    luminance_data = load_luminance_data(image_nb, format_=format_)
+    # log_mean_luminance = np.mean(np.log(luminance_data))
+    log_mean_luminance = np.mean(np.log(1.0 + luminance_data))
+
+    return log_mean_luminance
+
+
+get_log_mean_luminances = repeat_for_each_image(get_log_mean_luminance)
+
+
+@ImageMetadata.cache('log_std_luminance')
+def get_log_std_luminance(image_nb, format_='iml'):
+
+    luminance_data = load_luminance_data(image_nb, format_=format_)
+    log_std_luminance = np.std(np.log(1.0 + luminance_data))
+
+    return log_std_luminance
+
+
+get_log_std_luminances = repeat_for_each_image(get_log_std_luminance)
+
+
 @ImageMetadata.cache('saturation_luminance')
 def get_saturation_luminance(image_nb, format_='iml'):
 

@@ -25,20 +25,19 @@ name = 'fi'
 
 default_configuration = {
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
-    # TODO swap the 2 following lines.
-    # 'vh_image_nbs': None,
-    # 'vh_image_nbs': [1, 3, 4, 694],
-    'vh_image_nbs': list(range(1, 20)),
+    'vh_image_nbs': None,
+    # 'vh_image_nbs': list(range(1, 20)),
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
-    'normalized_value_median': 0.5,
-    'normalized_value_mad': 0.01,
+    'mean_luminance': 0.25,
+    'std_luminance': 0.05,
+    'normalized_value_median': 0.5,  # TODO remove (deprecated)?
+    'normalized_value_mad': 0.01,  # TODO remove (deprecated)?
     'display_rate': 40.0,  # Hz
-    'adaptation_duration': 5.0,  # s
-    # TODO swap the 2 following lines.
-    # 'flash_duration': 0.3,  # s
-    'flash_duration': 10.0,  # s
+    'adaptation_duration': 30.0,  # s
+    'flash_duration': 0.3,  # s
+    # 'flash_duration': 10.0,  # s
     'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
@@ -68,6 +67,8 @@ def generate(args):
     # Get configuration parameters.
     vh_image_nbs = config['vh_image_nbs']
     eye_diameter = config['eye_diameter']
+    mean_luminance = config['mean_luminance']
+    std_luminance = config['std_luminance']
     normalized_value_median = config['normalized_value_median']
     normalized_value_mad = config['normalized_value_mad']
     display_rate = config['display_rate']
@@ -80,7 +81,6 @@ def generate(args):
     nb_repetitions = config['nb_repetitions']
     seed = config['seed']
     verbose = config['verbose']
-    # TODO complete?
 
     # Fetch van Hateren images.
     vh.fetch(image_nbs=vh_image_nbs, download_if_missing=False, verbose=verbose)
@@ -96,18 +96,24 @@ def generate(args):
     unsaturated_vh_image_nbs = vh_image_nbs[are_unsaturated]
 
     # Select ...
-    mean_luminances = vh.get_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
-    std_luminances = vh.get_std_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    # mean_luminances = vh.get_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    # std_luminances = vh.get_std_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
     max_luminances = vh.get_max_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
     # TODO remove the following lines?
-    max_centered_luminances = max_luminances / mean_luminances
-    # print(np.min(max_centered_luminances))
-    # print(np.median(max_centered_luminances))
-    # print(np.max(max_centered_luminances))
-    are_good = max_centered_luminances <= 8.3581  # TODO correct?
+    # max_centered_luminances = max_luminances / mean_luminances
+    # # print(np.min(max_centered_luminances))
+    # # print(np.median(max_centered_luminances))
+    # # print(np.max(max_centered_luminances))
+    # are_good = max_centered_luminances <= 8.3581  # TODO correct?
     # TODO remove the following lines?
     # max_normalized_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
     # are_good = max_normalized_luminances <= 1.02
+    # TODO remove the following lines?
+    log_mean_luminances = vh.get_log_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    log_std_luminances = vh.get_log_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    log_max_luminances = np.log(1.0 + max_luminances)
+    log_max_normalized_luminances = (log_max_luminances - log_mean_luminances) / log_std_luminances
+    are_good = log_max_normalized_luminances <= 5.0
     # ...
     good_vh_image_nbs = unsaturated_vh_image_nbs[are_good]
 
@@ -117,11 +123,11 @@ def generate(args):
     # Generate grey image.
     image_filename = "image_{i:04d}.png".format(i=0)
     image_path = os.path.join(images_path, image_filename)
-    if not os.path.isfile(image_path):
-        frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
-        frame = float_frame_to_uint8_frame(frame)
-        image = create_png_image(frame)
-        image.save(image_path)
+    # if not os.path.isfile(image_path):  # TODO uncomment this line.
+    frame = get_grey_frame(frame_width, frame_height, luminance=mean_luminance)
+    frame = float_frame_to_uint8_frame(frame)
+    image = create_png_image(frame)
+    image.save(image_path)
 
     # Extract images from the van Hateren images.
     for vh_image_nb in tqdm.tqdm(selected_vh_image_nbs):
@@ -135,7 +141,7 @@ def generate(args):
         a_x = vh.get_horizontal_angles()
         a_y = vh.get_vertical_angles()
         luminance_data = vh.load_luminance_data(vh_image_nb)
-        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, luminance_data, kx=2, ky=2)
+        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, luminance_data, kx=1, ky=1)
         angular_resolution = math.atan(frame_resolution / eye_diameter) * (180.0 / math.pi)
         a_x = compute_horizontal_angles(width=frame_width, angular_resolution=angular_resolution)
         a_y = compute_vertical_angles(height=frame_height, angular_resolution=angular_resolution)
@@ -156,20 +162,32 @@ def generate(args):
         # shifted_n_scaled_data = scaled_data + normalized_value_median
         # data = shifted_n_scaled_data
         # TODO remove the 2 following lines?
-        scaled_luminance_data = luminance_data / np.mean(luminance_data)
-        data = scaled_luminance_data / 8.3581
+        # scaled_luminance_data = luminance_data / np.mean(luminance_data)
+        # data = scaled_luminance_data / 8.3581
         # TODO remove the 2 following lines?
         # normalized_luminance_data = (luminance_data / np.mean(luminance_data) - 1.0) / np.std(luminance_data) + 1.0
         # data = (normalized_luminance_data - 1.0) / 0.02 * 0.8 + 0.2
+        # TODO remove the following lines?
+        log_luminance_data = np.log(1.0 + luminance_data)
+        log_mean_luminance = np.mean(log_luminance_data)
+        log_std_luminance = np.std(log_luminance_data)
+        normalized_log_luminance_data = (log_luminance_data - log_mean_luminance) / log_std_luminance
+        normalized_log_luminance_data = 0.2 * normalized_log_luminance_data
+        normalized_luminance_data = np.exp(normalized_log_luminance_data) - 1.0
+        normalized_luminance_data = normalized_luminance_data - np.mean(normalized_luminance_data)
+        normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
+        data = std_luminance * normalized_luminance_data + mean_luminance
         # Prepare image data
         if np.count_nonzero(data < 0.0) > 0:
-            string = "some pixels are negative in image {} (consider changing the configuration, 'normalized_value_mad': {})"
-            message = string.format(vh_image_nb, normalized_value_mad / ((normalized_value_median - np.min(data)) / (normalized_value_median - 0.0)))
+            s = "some pixels are negative in image {} (consider changing the configuration, 'normalized_value_mad': {})"
+            message = s.format(vh_image_nb, normalized_value_mad /
+                               ((normalized_value_median - np.min(data)) / (normalized_value_median - 0.0)))
             warnings.warn(message)
         data[data < 0.0] = 0.0
         if np.count_nonzero(data > 1.0) > 0:
-            string = "some pixels saturate in image {} (consider changing the configuration, 'normalized_value_mad': {})"
-            message = string.format(vh_image_nb, normalized_value_mad / ((np.max(data) - normalized_value_median) / (1.0 - normalized_value_median)))
+            s = "some pixels saturate in image {} (consider changing the configuration, 'normalized_value_mad': {})"
+            message = s.format(vh_image_nb, normalized_value_mad /
+                               ((np.max(data) - normalized_value_median) / (1.0 - normalized_value_median)))
             warnings.warn(message)
         data[data > 1.0] = 1.0
         data = np.array(254.0 * data, dtype=np.uint8)  # 0.0 -> 0 and 1.0 -> 254 such that 0.5 -> 127
@@ -226,9 +244,10 @@ def generate(args):
     nb_bin_images = 1 + nb_conditions  # i.e. grey image and other conditions
     bin_frame_nbs = {}
     # Open .bin file.
-    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False)
+    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width,
+                             frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
-    grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
+    grey_frame = get_grey_frame(frame_width, frame_height, luminance=mean_luminance)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
     bin_file.append(grey_frame)
     bin_frame_nbs[None] = bin_file.get_frame_nb()

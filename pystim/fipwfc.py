@@ -65,7 +65,7 @@ default_configuration = {
         'height': 864,  # px
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
-    'nb_unperturbed_flashes_per_image': 1,
+    'nb_unperturbed_flashes_per_image': 2,
     'nb_repetitions': 2,  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
     'seed': 42,
 }
@@ -280,7 +280,9 @@ def generate(args):
                 frame_paths[condition_nb] = get_frame_path(image_nb, pattern_nb, amplitude_nb)
                 condition_nb += 1
     condition_nbs = np.array(list(conditions_params.keys()))
+    unperturbed_condition_nbs = np.array(unperturbed_condition_nbs)
     nb_conditions = len(condition_nbs)
+    nb_unperturbed_conditions = len(unperturbed_condition_nbs)
 
     # Create frames.
     image_data = None
@@ -343,9 +345,10 @@ def generate(args):
         selected_condition_nbs = np.concatenate(
             [condition_nbs] + [unperturbed_condition_nbs for _ in range(0, nb_unperturbed_flashes_per_image - 1)]
         )
-    # # ...
+    selected_condition_nbs = np.sort(selected_condition_nbs)
     for repetition_nb in range(0, nb_repetitions):
-        ordering = np.copy(condition_nbs)
+        # ordering = np.copy(condition_nbs)
+        ordering = np.copy(selected_condition_nbs)
         np.random.shuffle(ordering)
         repetition_orderings[repetition_nb] = ordering
 
@@ -400,7 +403,7 @@ def generate(args):
     nb_bin_images = 1 + nb_conditions  # i.e. grey image and other conditions
     bin_frame_nbs = {}
     # Open .bin file.
-    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False)
+    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
     grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
@@ -427,7 +430,7 @@ def generate(args):
     nb_displays_during_adaptation = int(np.ceil(adaptation_duration * display_rate))
     nb_displays_per_flash = int(np.ceil(flash_duration * display_rate))
     nb_displays_per_inter_flash = int(np.ceil(inter_flash_duration * display_rate))
-    nb_displays_per_repetition = nb_conditions * (nb_displays_per_flash + nb_displays_per_inter_flash)
+    nb_displays_per_repetition = ((nb_conditions - nb_unperturbed_conditions) + nb_unperturbed_flashes_per_image * nb_unperturbed_conditions) * (nb_displays_per_flash + nb_displays_per_inter_flash)
     nb_displays = nb_displays_during_adaptation + nb_repetitions * nb_displays_per_repetition
     # Open .vec file.
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)

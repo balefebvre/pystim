@@ -189,7 +189,12 @@ mean_luminances = vh.get_mean_luminances(image_nbs=not_saturated_image_nbs, verb
 std_luminances = vh.get_std_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 max_luminances = vh.get_max_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 max_centered_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
-max_normalized_luminances = (max_luminances - mean_luminances) / std_luminances
+# max_normalized_luminances = (max_luminances - mean_luminances) / std_luminances
+log_mean_luminances = vh.get_log_mean_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
+log_std_luminances = vh.get_log_std_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
+log_max_luminances = np.log(1.0 + max_luminances)
+# max_normalized_luminances = np.exp((log_max_luminances - log_mean_luminances) / log_std_luminances) - 1.0
+max_normalized_luminances = (log_max_luminances - log_mean_luminances) / log_std_luminances
 # selection = max_luminances < 18018.0
 # not_saturated_image_nbs = not_saturated_image_nbs[selection]
 # max_luminances = max_luminances[selection]

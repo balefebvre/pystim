@@ -51,17 +51,19 @@ class BinFile:
             self._frame_height = header['height']
             self._nb_bits = header['nb_bits']
             self._file = open(self._path, mode='rb')
+            self._frame_nb = self._nb_images - 1
         elif self._mode == 'w':
             self._nb_images = nb_images
             self._frame_width = frame_width
             self._frame_height = frame_height
             self._nb_bits = 8
-            self._file = open(self._path, mode='w+b')
+            # self._file = open(self._path, mode='w+b')
+            self._file = open(self._path, mode='wb')
             self._write_header()
+            self._frame_nb = -1
         else:
             raise ValueError("unknown mode value: {}".format(self._mode))
 
-        self._frame_nb = self._nb_images - 1  # i.e current frame number
         self._counter = 0
 
     def __len__(self):
@@ -87,7 +89,7 @@ class BinFile:
     @property
     def _frame_shape(self):
 
-        return (self._frame_width, self._frame_height)
+        return self._frame_width, self._frame_height
 
     @property
     def width(self):
