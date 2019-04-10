@@ -33,15 +33,17 @@ default_configuration = {
     'images': {
         0: ('grey', 127),
         1: ('van Hateren', 5),
+        2: ('van Hateren', 31),
+        # 3: ('van Hateren', 46),  # saturated image
+        3: ('van Hateren', 2219),
         # TODO uncomment the following lines.
-        # 2: ('van Hateren', 31),
-        # 3: ('van Hateren', 46),
         # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        'pattern_nbs': list(range(2, 4)),  # TODO correct (avoid same nbs as fipwfc).
-        # 'pattern_nbs': list(range(18, 20)),  # TODO remove?
-        # 'pattern_nbs': list(range(9, 11)),  # TODO remove?
+        # 'pattern_nbs': list(range(2, 4)),  # TODO correct (avoid same nbs as fipwfc).
+        # 'pattern_nbs': list(range(18, 18 + 18 * 8)),  # TODO remove?
+        # 'pattern_nbs': list(range(9, 9 + 9 * 8)),  # TODO remove?
+        'pattern_nbs': list(range(5, 5 + 5 * 6 * 20 * 2)),
         'nb_horizontal_checks': 56,
         'nb_vertical_checks': 56,
         'amplitude': +15.0,  # grey levels
@@ -51,16 +53,20 @@ default_configuration = {
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
     'display_rate': 40.0,  # Hz
-    'adaptation_duration': 5.0,  # s  # TODO set to ?.
-    'flash_duration': 10.0,  # s  # TODO set to 0.3.
-    'inter_flash_duration': 1.0,  # s  # TODO set to 0.3.
+    # 'adaptation_duration': 5.0,  # s
+    'adaptation_duration': 60.0,  # s
+    # 'flash_duration': 10.0,  # s
+    'flash_duration': 0.3,  # s
+    # 'inter_flash_duration': 1.0,  # s
+    'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
         'height': 864,  # px
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
     'nb_unperturbed_flashes_per_image': 0,  # TODO remove?
-    'nb_repetitions': 2,  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
+    # 'nb_repetitions': 2,
+    'nb_repetitions': 1,
     'seed': 42,
 }
 
@@ -109,7 +115,7 @@ def generate(args):
         image_key = image_keys[str(image_nb)]
         fetch_image(*image_key)
     nb_images = len(image_nbs)
-    _ = nb_images  # TODO remove?
+    _ = nb_images
 
     # Fetch patterns.
     pattern_nbs = np.array(pattern_nbs)
@@ -168,9 +174,25 @@ def generate(args):
         mean = np.mean(data)
         scaled_data = data / mean if mean > 0.0 else data
         shifted_n_scaled_data = 0.2 * scaled_data  # TODO correct?
+        # TODO keep the following normalization?
+        mean_luminance = 0.25
+        std_luminance = 0.05
+        luminance_data = data
+        log_luminance_data = np.log(1.0 + luminance_data)
+        log_mean_luminance = np.mean(log_luminance_data)
+        log_std_luminance = np.std(log_luminance_data)
+        normalized_log_luminance_data = log_luminance_data - log_mean_luminance
+        if log_std_luminance > 1e-13:
+            normalized_log_luminance_data = normalized_log_luminance_data / log_std_luminance
+        normalized_log_luminance_data = 0.2 * normalized_log_luminance_data
+        normalized_luminance_data = np.exp(normalized_log_luminance_data) - 1.0
+        normalized_luminance_data = normalized_luminance_data - np.mean(normalized_luminance_data)
+        if np.std(normalized_luminance_data) > 1e-13:
+            normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
+        luminance_data = std_luminance * normalized_luminance_data + mean_luminance
         # Save image data.
         image_data_path = os.path.join(base_path, images_params[image_nb]['path'])
-        np.save(image_data_path, data)
+        np.save(image_data_path, luminance_data)
         # Prepare image.
         data = shifted_n_scaled_data
         data[data < 0.0] = 0.0
@@ -230,7 +252,9 @@ def generate(args):
 
     def get_frame_path(image_nb, pattern_nb):
 
-        frame_nb = (image_nb * nb_patterns) + pattern_nb
+        image_index = np.where(image_nbs == image_nb)[0][0]
+        pattern_index = np.where(pattern_nbs == pattern_nb)[0][0]
+        frame_nb = (image_index * nb_patterns) + pattern_index
         filename = "frame_{nb:04d}.png".format(nb=frame_nb)
         path = os.path.join(frames_path, filename)
 
@@ -262,12 +286,11 @@ def generate(args):
         images_data[image_nb] = image_data
     # # Create frames.
     pattern_data = None
-    for pattern_nb in pattern_nbs:
+    for pattern_nb in tqdm.tqdm(pattern_nbs):
         for image_nb in image_nbs:
             frame_path = get_frame_path(image_nb, pattern_nb)
-            # TODO uncomment the 2 following lines.
-            # if os.path.isfile(frame_path):
-            #     continue
+            if os.path.isfile(frame_path):
+                continue
             # Get image data.
             image_data = images_data[image_nb]
             # Get pattern data.
@@ -333,7 +356,7 @@ def generate(args):
     nb_bin_images = 1 + nb_conditions  # i.e. grey image and other conditions
     bin_frame_nbs = {}
     # Open .bin file.
-    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False)
+    bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
     grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
     grey_frame = float_frame_to_uint8_frame(grey_frame)

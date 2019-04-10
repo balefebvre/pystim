@@ -26,7 +26,7 @@ name = 'fi'
 default_configuration = {
     'path': os.path.join(tempfile.gettempdir(), "pystim", name),
     'vh_image_nbs': None,
-    # 'vh_image_nbs': list(range(1, 20)),
+    # 'vh_image_nbs': list(range(1, 10)),
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
@@ -35,17 +35,26 @@ default_configuration = {
     'normalized_value_median': 0.5,  # TODO remove (deprecated)?
     'normalized_value_mad': 0.01,  # TODO remove (deprecated)?
     'display_rate': 40.0,  # Hz
-    'adaptation_duration': 30.0,  # s
+    # 'adaptation_duration': 0.1,  # s
+    'adaptation_duration': 60.0,  # s
+    # 'flash_duration': 0.1,  # s
     'flash_duration': 0.3,  # s
-    # 'flash_duration': 10.0,  # s
+    # 'inter_flash_duration': 0.1,  # s
     'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
         'height': 864,  # px
-        'duration': 0.3,  # s
+        # 'duration': 0.3,  # s  # TODO remove (deprecated)?
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
-    'nb_repetitions': 5,  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
+    # 'stuttering_vh_image_nbs': [1, 3],
+    'stuttering_vh_image_nbs': [5, 31, 2219],  # 46 is saturated
+    # 'nb_stuttering_vh_images': 2,
+    'nb_stuttering_vh_images': 30,
+    # 'nb_stutters': 2,
+    'nb_stutters': 20,
+    # 'nb_repetitions': 2,
+    'nb_repetitions': 1,
     'seed': 42,
     'verbose': True,
 }
@@ -79,6 +88,9 @@ def generate(args):
     frame_width = config['frame']['width']
     frame_height = config['frame']['height']
     nb_repetitions = config['nb_repetitions']
+    stuttering_vh_image_nbs = config['stuttering_vh_image_nbs']
+    nb_stuttering_vh_images = config['nb_stuttering_vh_images']
+    nb_stutters = config['nb_stutters']
     seed = config['seed']
     verbose = config['verbose']
 
@@ -116,9 +128,25 @@ def generate(args):
     are_good = log_max_normalized_luminances <= 5.0
     # ...
     good_vh_image_nbs = unsaturated_vh_image_nbs[are_good]
-
+    # ...
     # selected_vh_image_nbs = unsaturated_vh_image_nbs
     selected_vh_image_nbs = good_vh_image_nbs
+
+    # Check stuttering van Hateren image numbers.
+    np.random.seed(seed)
+    if stuttering_vh_image_nbs is None:
+        stuttering_vh_image_nbs = np.array([])
+    else:
+        assert len(stuttering_vh_image_nbs) <= nb_stuttering_vh_images
+        for stuttering_vh_image_nb in stuttering_vh_image_nbs:
+            assert stuttering_vh_image_nb in selected_vh_image_nbs, stuttering_vh_image_nb
+    potential_stuttering_vh_image_nbs = np.setdiff1d(selected_vh_image_nbs, stuttering_vh_image_nbs, assume_unique=True)
+    nb_missing_stuttering_vh_image_nbs = nb_stuttering_vh_images - len(stuttering_vh_image_nbs)
+    stuttering_vh_image_nbs = np.concatenate((
+        stuttering_vh_image_nbs,
+        np.random.choice(potential_stuttering_vh_image_nbs, nb_missing_stuttering_vh_image_nbs, replace=False)
+    ))
+    stuttering_vh_image_nbs.sort()
 
     # Generate grey image.
     image_filename = "image_{i:04d}.png".format(i=0)
@@ -134,9 +162,8 @@ def generate(args):
         # Check if image already exists.
         image_filename = "image_{i:04d}.png".format(i=vh_image_nb)
         image_path = os.path.join(images_path, image_filename)
-        # TODO uncomment the following lines
-        # if os.path.isfile(image_path):
-        #     continue
+        if os.path.isfile(image_path):
+            continue
         # Cut out central sub-region.
         a_x = vh.get_horizontal_angles()
         a_y = vh.get_vertical_angles()
@@ -199,6 +226,7 @@ def generate(args):
 
     # Set condition numbers and image paths.
     condition_nbs = []
+    stuttering_condition_nbs = []
     image_paths = {}
     for k, vh_image_nb in enumerate(selected_vh_image_nbs):
         # condition_nb = k + 1
@@ -208,9 +236,13 @@ def generate(args):
         assert condition_nb not in condition_nbs
         assert os.path.isfile(image_path)
         condition_nbs.append(condition_nb)
+        if vh_image_nb in stuttering_vh_image_nbs:
+            stuttering_condition_nbs.append(condition_nb)
         image_paths[condition_nb] = image_path
     condition_nbs = np.array(condition_nbs)
+    stuttering_condition_nbs = np.array(stuttering_condition_nbs)
     nb_conditions = len(condition_nbs)
+    nb_stuttering_conditions = len(stuttering_condition_nbs)
 
     # Create conditions .csv file.
     conditions_csv_filename = '{}_conditions.csv'.format(name)
@@ -229,13 +261,37 @@ def generate(args):
     # ...
     print("End of conditions .csv file creation.")
 
-    # Set image ordering of each repetition.
-    repetition_orderings = {}
+    # Set sequence of conditions for each repetition.
+    repetition_sequences = {}
     np.random.seed(seed)
+    normal_condition_nbs = np.setdiff1d(condition_nbs, stuttering_condition_nbs, assume_unique=True)
+    nb_normal_indices = len(normal_condition_nbs)
+    nb_stuttering_indices = nb_stuttering_conditions * nb_stutters
+    nb_indices = nb_normal_indices + nb_stuttering_indices
+    sequence = np.empty(nb_indices, dtype=np.int)
+    stuttering_indices = np.linspace(0, nb_indices, num=nb_stuttering_indices, endpoint=False)
+    stuttering_indices = stuttering_indices.astype(np.int)
+    normal_indices = np.setdiff1d(np.arange(0, nb_indices), stuttering_indices)
+    sequence[stuttering_indices] = np.concatenate(tuple([
+        stuttering_condition_nbs
+        for _ in range(0, nb_stutters)
+    ]))
     for repetition_nb in range(0, nb_repetitions):
-        ordering = np.copy(condition_nbs)
-        np.random.shuffle(ordering)
-        repetition_orderings[repetition_nb] = ordering
+        repetition_sequence = np.copy(sequence)
+        # Normal.
+        repetition_normal_sequence = np.copy(normal_condition_nbs)
+        np.random.shuffle(repetition_normal_sequence)
+        repetition_sequence[normal_indices] = repetition_normal_sequence
+        # Stuttering.
+        repetition_stuttering_sequence = []
+        for _ in range(0, nb_stutters):
+            repetition_stuttering_condition_nbs = np.copy(stuttering_condition_nbs)
+            np.random.shuffle(repetition_stuttering_condition_nbs)
+            repetition_stuttering_sequence.append(repetition_stuttering_condition_nbs)
+        repetition_stuttering_sequence = np.concatenate(tuple(repetition_stuttering_sequence))
+        repetition_sequence[stuttering_indices] = repetition_stuttering_sequence
+        # ...
+        repetition_sequences[repetition_nb] = repetition_sequence
 
     # Create .bin file.
     print("Start creating .bin file...")
@@ -273,27 +329,28 @@ def generate(args):
     nb_displays_during_adaptation = int(np.ceil(adaptation_duration * display_rate))
     nb_displays_per_flash = int(np.ceil(flash_duration * display_rate))
     nb_displays_per_inter_flash = int(np.ceil(inter_flash_duration * display_rate))
-    nb_displays_per_repetition = nb_conditions * (nb_displays_per_flash + nb_displays_per_inter_flash)
+    nb_flashes_per_repetition = nb_conditions + nb_stuttering_vh_images * (nb_stutters - 1)
+    nb_displays_per_repetition = nb_flashes_per_repetition * (nb_displays_per_flash + nb_displays_per_inter_flash)
     nb_displays = nb_displays_during_adaptation + nb_repetitions * nb_displays_per_repetition
     # Open .vec file.
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     # Open .csv file.
-    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_nb', 'end_nb'])
+    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_frame_nb', 'end_frame_nb'])
     # Add adaptation.
     bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
     for _ in range(0, nb_displays_during_adaptation):
         vec_file.append(bin_frame_nb)
     # Add repetitions.
     for repetition_nb in tqdm.tqdm(range(0, nb_repetitions)):
-        condition_nbs = repetition_orderings[repetition_nb]
-        for condition_nb in condition_nbs:
+        repetition_sequence = repetition_sequences[repetition_nb]
+        for condition_nb in repetition_sequence:
             # Add flash.
             start_nb = vec_file.get_display_nb() + 1
             bin_frame_nb = bin_frame_nbs[condition_nb]
             for _ in range(0, nb_displays_per_flash):
                 vec_file.append(bin_frame_nb)
             end_nb = vec_file.get_display_nb()
-            csv_file.append(condition_nb=condition_nb, start_nb=start_nb, end_nb=end_nb)
+            csv_file.append(condition_nb=condition_nb, start_frame_nb=start_nb, end_frame_nb=end_nb)
             # Add inter flash.
             bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
             for _ in range(0, nb_displays_per_inter_flash):

@@ -24,18 +24,22 @@ default_configuration = {
     'stimuli': collections.OrderedDict([
         (0, os.path.join(tempfile.gettempdir(), 'pystim', 'fipwfc')),
         (1, os.path.join(tempfile.gettempdir(), 'pystim', 'fipwrc')),
-        # (2, os.path.join(tempfile.gettempdir(), 'pystim', 'fi')),  # TODO uncomment.
+        (2, os.path.join(tempfile.gettempdir(), 'pystim', 'fi')),
     ]),
+    'mean_luminance': 0.25,
     'display_rate': 40.0,  # Hz
-    'adaptation_duration': 5.0,  # s  # TODO set to ?.
-    'flash_duration': 10.0,  # s  # TODO set to 0.3.
-    'inter_flash_duration': 1.0,  # s  # TODO set to 0.3.
+    'adaptation_duration': 5.0,  # s
+    # 'adaptation_duration': 60.0,  # s
+    # 'flash_duration': 10.0,  # s
+    'flash_duration': 0.3,  # s
+    # 'inter_flash_duration': 1.0,  # s
+    'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
         'height': 864,  # px
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
-    'nb_repetitions': 2,
+    'nb_repetitions': 1,
     'seed': 42,
 }
 
@@ -51,6 +55,7 @@ def generate(args):
 
     # Get configuration parameters.
     stimuli_dirnames = config['stimuli']
+    mean_luminance = config['mean_luminance']
     display_rate = config['display_rate']
     adaptation_duration = config['adaptation_duration']
     flash_duration = config['flash_duration']
@@ -124,20 +129,34 @@ def generate(args):
         stimuli_condition_nbs[stimulus_nb] = stimulus_condition_nbs
         stimuli_bin_frame_nbs[stimulus_nb] = stimulus_bin_frame_nbs
 
+    stimulus_sequence = np.concatenate(tuple([
+        np.repeat(stimulus_nb, len(stimuli_condition_nbs[stimulus_nb]))
+        for stimulus_nb in stimulus_nbs
+    ]))
+    np.random.seed(seed)
+    np.random.shuffle(stimulus_sequence)
+    stimuli_indices = {
+        stimulus_nb: np.where(stimulus_sequence == stimulus_nb)[0]
+        for stimulus_nb in stimulus_nbs
+    }
+
     trials = {}  # trial_nb -> stimulus_nb, condition_nb
     trial_nb = 0
+    ordering = np.empty_like(stimulus_sequence, dtype=np.int)
     for stimulus_nb in stimulus_nbs:
         stimulus_condition_nbs = stimuli_condition_nbs[stimulus_nb]
-        for _, condition_nb in stimulus_condition_nbs.items():
+        stimulus_indices = stimuli_indices[stimulus_nb]
+        for condition_nb, stimulus_index in zip(stimulus_condition_nbs.values(), stimulus_indices):
             trials[trial_nb] = (stimulus_nb, condition_nb)
+            ordering[stimulus_index] = trial_nb
             trial_nb += 1
     nb_trials = len(trials)
 
-    # Set ordering.
-    np.random.seed(seed)
-    trial_nbs = np.arange(0, nb_trials)
-    ordering = np.copy(trial_nbs)
-    np.random.shuffle(ordering)
+    # # Set ordering.
+    # np.random.seed(seed)
+    # trial_nbs = np.arange(0, nb_trials)
+    # ordering = np.copy(trial_nbs)
+    # np.random.shuffle(ordering)
 
     # Create conditions .csv file.
     # TODO complete.
@@ -159,7 +178,7 @@ def generate(args):
     # Open .bin file.
     bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
-    grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
+    grey_frame = get_grey_frame(frame_width, frame_height, luminance=mean_luminance)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
     bin_file.append(grey_frame)
     # Add frames.

@@ -35,21 +35,24 @@ default_configuration = {
         0: ('grey', 127),
         1: ('van Hateren', 5),
         2: ('van Hateren', 31),
-        3: ('van Hateren', 46),
+        # 3: ('van Hateren', 46),  # saturated image
+        3: ('van Hateren', 2219),
         # TODO comment the following line.
-        4: ('van Hateren', 39),
+        # 4: ('van Hateren', 39),
     },
     'perturbations': {
-        'pattern_nbs': list(range(0, 2)),
-        # 'pattern_nbs': list(range(0, 18)),  # TODO remove?
-        # 'pattern_nbs': list(range(0, 9)),  # TODO remove?
+        # 'pattern_nbs': list(range(0, 2)),
+        # 'pattern_nbs': list(range(0, 18)),
+        'pattern_nbs': list(range(0, 5)),
         'nb_horizontal_checks': 56,
         'nb_vertical_checks': 56,
         # 'amplitudes': [float(a) / float(256) for a in [10, 28]],  # TODO remove?
         # 'amplitudes': [float(a) / float(256) for a in [-28, +28]],  # TODO remove?
         # 'amplitudes': [float(a) / float(256) for a in [2, 4, 7, 10, 14, 18, 23, 28]],  # TODO remove?
         # 'amplitudes': [float(a) / float(256) for a in [-30, -20, -15, -10, +10, +15, +20, +30]],
-        'amplitudes': [-15.0, +15.0],
+        # 'amplitudes': [-15.0, +15.0],
+        # 'amplitudes': [-30.0, -20.0, -15.0, -10.0, +10.0, +15.0, +20.0, +30.0],
+        'amplitudes': [-22.5, -15.0, -7.5, +7.5, +15.0, +22.5],
         # 'resolution': 50.0,  # µm / pixel
         'resolution': float(15) * 3.5,  # µm / pixel
     },
@@ -57,17 +60,20 @@ default_configuration = {
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
     'display_rate': 40.0,  # Hz
-    'adaptation_duration': 5.0,  # s  # TODO set to ?.
-    'flash_duration': 10.0,  # s  # TODO set to 0.3.
-    'inter_flash_duration': 1.0,  # s  # TODO set to 0.3.
+    'adaptation_duration': 60.0,  # s
+    'flash_duration': 0.3,  # s
+    'inter_flash_duration': 0.3,  # s
     'frame': {
         'width': 864,  # px
         'height': 864,  # px
         'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
-    'nb_unperturbed_flashes_per_image': 2,
-    'nb_repetitions': 2,  # i.e. 5 x ~3000 images -> 5 x ~15 min = 1 h 15 min
+    'nb_unperturbed_flashes_per_image': 5,
+    # 'nb_repetitions': 2,
+    # 'nb_repetitions': 10,
+    'nb_repetitions': 20,
     'seed': 42,
+    'force': True,
 }
 
 
@@ -109,6 +115,7 @@ def generate(args):
     nb_unperturbed_flashes_per_image = config['nb_unperturbed_flashes_per_image']
     nb_repetitions = config['nb_repetitions']
     seed = config['seed']
+    force = config['force']
 
     # Fetch images.
     image_nbs = np.array(list(image_keys.keys()), dtype=int)
@@ -154,13 +161,14 @@ def generate(args):
         # Cut out central sub-regions.
         a_x = dataset.get_horizontal_angles()
         a_y = dataset.get_vertical_angles()
-        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, data)
+        rbs = sp.interpolate.RectBivariateSpline(a_x, a_y, data, kx=1, ky=1)
         angular_resolution = math.atan(frame_resolution / eye_diameter) * (180.0 / math.pi)
         a_x = compute_horizontal_angles(width=frame_width, angular_resolution=angular_resolution)
         a_y = compute_vertical_angles(height=frame_height, angular_resolution=angular_resolution)
         a_x, a_y = np.meshgrid(a_x, a_y)
         data = rbs.ev(a_x, a_y)
         data = data.transpose()
+        # TODO remove the following lines (deprecated)?
         # # Prepare image data.
         # median = np.median(data)
         # mad = np.median(np.abs(data - median))
@@ -173,16 +181,34 @@ def generate(args):
         # normalized_data = centered_n_reduced_data
         # scaled_data = 0.1 * normalized_data
         # shifted_n_scaled_data = scaled_data + 0.5
+        # data = shifted_n_scaled_data
         # TODO keep the following normalization?
-        # Prepare image data.
-        mean = np.mean(data)
-        scaled_data = data / mean if mean > 0.0 else data
-        shifted_n_scaled_data = 0.2 * scaled_data  # TODO correct?
+        # # Prepare image data.
+        # mean = np.mean(data)
+        # scaled_data = data / mean if mean > 0.0 else data
+        # shifted_n_scaled_data = 0.2 * scaled_data  # TODO correct?
+        # data = shifted_n_scaled_data
+        # TODO keep the following normalization?
+        mean_luminance = 0.25
+        std_luminance = 0.05
+        luminance_data = data
+        log_luminance_data = np.log(1.0 + luminance_data)
+        log_mean_luminance = np.mean(log_luminance_data)
+        log_std_luminance = np.std(log_luminance_data)
+        normalized_log_luminance_data = log_luminance_data - log_mean_luminance
+        if log_std_luminance > 1e-13:
+            normalized_log_luminance_data = normalized_log_luminance_data / log_std_luminance
+        normalized_log_luminance_data = 0.2 * normalized_log_luminance_data
+        normalized_luminance_data = np.exp(normalized_log_luminance_data) - 1.0
+        normalized_luminance_data = normalized_luminance_data - np.mean(normalized_luminance_data)
+        if np.std(normalized_luminance_data) > 1e-13:
+            normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
+        luminance_data = std_luminance * normalized_luminance_data + mean_luminance
         # Save image data.
         image_data_path = os.path.join(base_path, images_params[image_nb]['path'])
-        np.save(image_data_path, data)
+        np.save(image_data_path, luminance_data)
         # Prepare image.
-        data = shifted_n_scaled_data
+        data = np.copy(luminance_data)
         data[data < 0.0] = 0.0
         data[data > 1.0] = 1.0
         data = np.array(254.0 * data, dtype=np.uint8)  # 0.0 -> 0 and 1.0 -> 254 such that 0.5 -> 127
@@ -194,7 +220,7 @@ def generate(args):
         image_image_path = os.path.join(images_path, image_image_filename)
         image.save(image_image_path)
 
-        return shifted_n_scaled_data
+        return luminance_data
 
     def get_pattern_data(pattern_nb):
 
@@ -286,10 +312,10 @@ def generate(args):
 
     # Create frames.
     image_data = None
-    for image_nb in image_nbs:
+    for image_nb in tqdm.tqdm(image_nbs):
         if nb_unperturbed_flashes_per_image > 0:
             frame_path = get_frame_path(image_nb, None, None)
-            if not os.path.isfile(frame_path):
+            if not os.path.isfile(frame_path) or force:
                 # Get image data.
                 image_data = get_image_data(image_nb)
                 # Create frame data.
@@ -304,10 +330,10 @@ def generate(args):
                 # Save frame image.
                 image.save(frame_path)
         pattern_data = None
-        for pattern_nb in pattern_nbs:
-            for amplitude_nb in amplitude_nbs:
+        for pattern_nb in tqdm.tqdm(pattern_nbs):
+            for amplitude_nb in tqdm.tqdm(amplitude_nbs):
                 frame_path = get_frame_path(image_nb, pattern_nb, amplitude_nb)
-                if os.path.isfile(frame_path):
+                if os.path.isfile(frame_path) and not force:
                     continue
                 # Get image data.
                 if image_data is None:
