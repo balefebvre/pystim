@@ -10,6 +10,23 @@ def open_file(path, nb_displays):
     return file
 
 
+def load_file(input_path):
+
+    with open(input_path, mode='r') as input_file:
+        lines = input_file.readlines()
+
+    nb_frames = int(lines[0].split()[1])
+
+    frame_nbs = np.array([
+        int(line.split()[1])
+        for line in lines[1:]
+    ])
+
+    assert len(frame_nbs) == nb_frames, "{} {}".format(len(frame_nbs), nb_frames)
+
+    return frame_nbs
+
+
 class VecFile:
 
     def __init__(self, path, nb_displays):
@@ -54,6 +71,8 @@ class VecFile:
     def get_display_index(self):
 
         return self._counter
+
+    get_display_nb = get_display_index
 
     def flush(self):
 

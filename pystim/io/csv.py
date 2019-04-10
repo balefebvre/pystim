@@ -8,6 +8,13 @@ def open_file(path, columns=[], dtype=None):
     return file
 
 
+def load_file(path):
+
+    dataframe = pd.read_csv(path, index_col=0)
+
+    return dataframe
+
+
 class CSVFile:
 
     def __init__(self, path, columns=[], dtype=None):
