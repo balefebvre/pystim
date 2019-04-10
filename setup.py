@@ -10,7 +10,8 @@ install_requires = [
     'numpy',
     'pandas',
     'Pillow',
-    'scipy', 'tqdm'
+    'scipy',
+    'tqdm',
 ]
 entry_points = {
     'console_scripts': [
