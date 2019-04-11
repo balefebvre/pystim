@@ -62,7 +62,7 @@ def generate(args):
     inter_flash_duration = config['inter_flash_duration']
     frame_width = config['frame']['width']
     frame_height = config['frame']['height']
-    nb_repetitions = config['nb_repetitions']
+    # nb_repetitions = config['nb_repetitions']  # TODO remove?
     seed = config['seed']
 
     # ...
@@ -89,6 +89,7 @@ def generate(args):
         condition_nb += 1
     condition_nbs = np.array(list(condition_params))
     nb_conditions = len(condition_nbs)
+    _ = nb_conditions
 
     # ...
     stimuli_nb_trials = {}
@@ -171,10 +172,23 @@ def generate(args):
         stimulus_bin_file = open_bin_file(stimulus_bin_path, mode='r')
         stimuli_nb_bin_images[stimulus_nb] = stimulus_bin_file.nb_frames
 
+    # TODO Map stimulus bin frame numbers to bin frame numbers.
+    bin_frame_nbs = {
+        None: 0,
+    }
+    bin_frame_nb_offset = 1
+    for stimulus_nb in stimulus_nbs:
+        bin_frame_nbs[stimulus_nb] = {}
+        stimulus_bin_frame_nbs = stimuli_bin_frame_nbs[stimulus_nb]
+        for condition_nb in stimulus_bin_frame_nbs.keys():
+            stimulus_bin_frame_nb = stimulus_bin_frame_nbs[condition_nb]
+            bin_frame_nbs[stimulus_nb][condition_nb] = stimulus_bin_frame_nb + bin_frame_nb_offset
+        bin_frame_nb_offset += stimuli_nb_bin_images[stimulus_nb]
+
     # Create .bin file.
     bin_filename = '{}.bin'.format(name)
     bin_path = os.path.join(base_path, bin_filename)
-    nb_bin_images = int(np.sum([n for n in stimuli_nb_bin_images.values()]))
+    nb_bin_images = 1 + int(np.sum([n for n in stimuli_nb_bin_images.values()]))
     # Open .bin file.
     bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
@@ -216,7 +230,9 @@ def generate(args):
     # Open .csv file.
     csv_file = open_csv_file(csv_path, columns=['stimulus_nb', 'start_frame_nb', 'end_frame_nb'])
     # Add adaptation.
-    bin_frame_nb = stimuli_bin_frame_nbs[None]  # i.e. default frame (grey)
+    # TODO swap and clean the 2 following lines.
+    # bin_frame_nb = stimuli_bin_frame_nbs[None]  # i.e. default frame (grey)
+    bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
     for _ in range(0, nb_displays_during_adaptation):
         vec_file.append(bin_frame_nb)
     # TODO remove the following commented lines.
@@ -239,13 +255,17 @@ def generate(args):
         stimulus_nb, condition_nb = trials[trial_nb]
         # Add flash.
         start_frame_nb = vec_file.get_display_nb() + 1
-        bin_frame_nb = stimuli_bin_frame_nbs[stimulus_nb][condition_nb]
+        # TODO swap and clean the 2 following lines.
+        # bin_frame_nb = stimuli_bin_frame_nbs[stimulus_nb][condition_nb]
+        bin_frame_nb = bin_frame_nbs[stimulus_nb][condition_nb]
         for _ in range(0, nb_displays_per_flash):
             vec_file.append(bin_frame_nb)
         end_frame_nb = vec_file.get_display_nb()
         csv_file.append(stimulus_nb=stimulus_nb, start_frame_nb=start_frame_nb, end_frame_nb=end_frame_nb)
         # Add inter flash.
-        bin_frame_nb = stimuli_bin_frame_nbs[None]
+        # TODO swap and clean the 2 following lines.
+        # bin_frame_nb = stimuli_bin_frame_nbs[None]
+        bin_frame_nb = bin_frame_nbs[None]
         for _ in range(0, nb_displays_per_inter_flash):
             vec_file.append(bin_frame_nb)
     # Close .csv file.
@@ -254,5 +274,7 @@ def generate(args):
     vec_file.close()
     # ...
     print("End of .vec file creation.")
+
+    # TODO create conditions .csv file for each stimulus.
 
     return
