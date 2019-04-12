@@ -388,7 +388,7 @@ def generate(args):
     # Open .vec file.
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     # Open .csv file.
-    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_frame_nb', 'end_frame_nb'])
+    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_display_nb', 'end_display_nb'])
     # Add adaptation.
     bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
     for _ in range(0, nb_displays_during_adaptation):
@@ -398,12 +398,12 @@ def generate(args):
         condition_nbs = repetition_orderings[repetition_nb]
         for condition_nb in condition_nbs:
             # Add flash.
-            start_frame_nb = vec_file.get_display_nb() + 1
+            start_display_nb = vec_file.get_display_nb() + 1
             bin_frame_nb = bin_frame_nbs[condition_nb]
             for _ in range(0, nb_displays_per_flash):
                 vec_file.append(bin_frame_nb)
-            end_frame_nb = vec_file.get_display_nb()
-            csv_file.append(condition_nb=condition_nb, start_frame_nb=start_frame_nb, end_frame_nb=end_frame_nb)
+            end_display_nb = vec_file.get_display_nb()
+            csv_file.append(condition_nb=condition_nb, start_display_nb=start_display_nb, end_display_nb=end_display_nb)
             # Add inter flash.
             bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
             for _ in range(0, nb_displays_per_inter_flash):

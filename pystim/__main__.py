@@ -6,6 +6,7 @@ from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
 from pystim.fi import generate as generate_fi
 from pystim.fi_comp import generate as generate_fi_comp
+from pystim.fi_merge import generate as generate_fi_merge
 from pystim.fipwc import generate as generate_fipwc
 from pystim.fipwfc import generate as generate_fipwfc
 from pystim.fipwrc import generate as generate_fipwrc
@@ -80,6 +81,10 @@ def main():
     # Flashed images composition.
     subparser_generate_fi_comp = subparsers_generate.add_parser('fi_comp', help="flashed images composition")
     subparser_generate_fi_comp.set_defaults(func=generate_fi_comp)
+
+    # Flashed images merging.
+    subparser_generate_fi_merge = subparsers_generate.add_parser('fi_merge', help="flashed images merging")
+    subparser_generate_fi_merge.set_defaults(func=generate_fi_merge)
 
     # Flashed images perturbed with checkerboard.
     subparser_generate_fipwc = subparsers_generate.add_parser('fipwc', help="flashed images perturbed with checkerboards")

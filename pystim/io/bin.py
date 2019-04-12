@@ -120,6 +120,7 @@ class BinFile:
         return self._mode == 'w'
 
     def get_frame_nb(self):
+        """Get the number of the latest frame appended."""
 
         return self._frame_nb
 
@@ -215,3 +216,6 @@ class BinFile:
         self._file.close()
 
         return
+
+
+load_nb_frames = BinFile.read_nb_images

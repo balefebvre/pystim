@@ -8,9 +8,14 @@ def open_file(path, columns=[], dtype=None):
     return file
 
 
-def load_file(path):
+def load_file(path, expected_columns=None):
 
     dataframe = pd.read_csv(path, index_col=0)
+
+    if expected_columns is not None:
+        columns = dataframe.columns.values.tolist()
+        for expected_column in expected_columns:
+            assert expected_column in columns, "column '{}' missing in file://{}".format(expected_column, path)
 
     return dataframe
 
