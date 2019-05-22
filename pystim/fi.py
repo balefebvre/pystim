@@ -198,11 +198,14 @@ def generate(args):
         log_luminance_data = np.log(1.0 + luminance_data)
         log_mean_luminance = np.mean(log_luminance_data)
         log_std_luminance = np.std(log_luminance_data)
-        normalized_log_luminance_data = (log_luminance_data - log_mean_luminance) / log_std_luminance
+        normalized_log_luminance_data = log_luminance_data - log_mean_luminance
+        if log_std_luminance > 1e-13:
+            normalized_log_luminance_data = normalized_log_luminance_data / log_std_luminance
         normalized_log_luminance_data = 0.2 * normalized_log_luminance_data
         normalized_luminance_data = np.exp(normalized_log_luminance_data) - 1.0
         normalized_luminance_data = normalized_luminance_data - np.mean(normalized_luminance_data)
-        normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
+        if np.std(normalized_luminance_data) > 1e-13:
+            normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
         data = std_luminance * normalized_luminance_data + mean_luminance
         # Prepare image data
         if np.count_nonzero(data < 0.0) > 0:

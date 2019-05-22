@@ -46,12 +46,15 @@ default_configuration = {
         'pattern_nbs': list(range(5, 5 + 5 * 6 * 20 * 2)),
         'nb_horizontal_checks': 56,
         'nb_vertical_checks': 56,
-        'amplitude': +15.0,  # grey levels
+        # 'amplitude': +15.0,  # grey levels  # last use: e20190417
+        'amplitude': +8.0,  # grey levels  # first use: e20190523
         'resolution': float(15) * 3.5,  # µm / pixel
     },
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
+    'mean_luminance': 0.25,
+    'std_luminance': 0.05,
     'display_rate': 40.0,  # Hz
     # 'adaptation_duration': 5.0,  # s
     'adaptation_duration': 60.0,  # s
@@ -99,6 +102,8 @@ def generate(args):
     pattern_nbs = config['perturbations']['pattern_nbs']
     amplitude_value = config['perturbations']['amplitude']
     eye_diameter = config['eye_diameter']
+    mean_luminance = config['mean_luminance']
+    std_luminance = config['std_luminance']
     display_rate = config['display_rate']
     adaptation_duration = config['adaptation_duration']
     flash_duration = config['flash_duration']
@@ -170,13 +175,11 @@ def generate(args):
         # scaled_data = 0.1 * normalized_data
         # shifted_n_scaled_data = scaled_data + 0.5
         # TODO keep the following normalization?
-        # Prepare image data.
-        mean = np.mean(data)
-        scaled_data = data / mean if mean > 0.0 else data
-        shifted_n_scaled_data = 0.2 * scaled_data  # TODO correct?
+        # # Prepare image data.
+        # mean = np.mean(data)
+        # scaled_data = data / mean if mean > 0.0 else data
+        # shifted_n_scaled_data = 0.2 * scaled_data  # TODO correct?
         # TODO keep the following normalization?
-        mean_luminance = 0.25
-        std_luminance = 0.05
         luminance_data = data
         log_luminance_data = np.log(1.0 + luminance_data)
         log_mean_luminance = np.mean(log_luminance_data)
@@ -194,7 +197,7 @@ def generate(args):
         image_data_path = os.path.join(base_path, images_params[image_nb]['path'])
         np.save(image_data_path, luminance_data)
         # Prepare image.
-        data = shifted_n_scaled_data
+        data = np.copy(luminance_data)
         data[data < 0.0] = 0.0
         data[data > 1.0] = 1.0
         data = np.array(254.0 * data, dtype=np.uint8)  # 0.0 -> 0 and 1.0 -> 254 such that 0.5 -> 127
@@ -206,7 +209,7 @@ def generate(args):
         image_image_path = os.path.join(images_path, image_image_filename)
         image.save(image_image_path)
 
-        return shifted_n_scaled_data
+        return luminance_data
 
     def get_pattern_data(pattern_nb):
 
@@ -358,7 +361,7 @@ def generate(args):
     # Open .bin file.
     bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
-    grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
+    grey_frame = get_grey_frame(frame_width, frame_height, luminance=mean_luminance)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
     bin_file.append(grey_frame)
     bin_frame_nbs[None] = bin_file.get_frame_nb()

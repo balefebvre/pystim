@@ -171,7 +171,12 @@ def generate(args):
         for index, stimulus_trial in stimulus_trials.iterrows():
             start_display_nb = stimulus_trials['start_display_nb'][index]
             end_display_nb = stimulus_trials['end_display_nb'][index]
-            bin_frame_nbs_sequence = stimulus_bin_frame_nbs_sequence[start_display_nb:end_display_nb+1]
+            try:
+                bin_frame_nbs_sequence = stimulus_bin_frame_nbs_sequence[start_display_nb:end_display_nb+1]
+            except TypeError as e:
+                print(start_display_nb)
+                print(end_display_nb)
+                raise e
             assert np.all(bin_frame_nbs_sequence == bin_frame_nbs_sequence[0])
             bin_frame_nb = bin_frame_nbs_sequence[0]
             tmp[index] = bin_frame_nb
