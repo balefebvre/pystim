@@ -198,11 +198,14 @@ def generate(args):
         log_luminance_data = np.log(1.0 + luminance_data)
         log_mean_luminance = np.mean(log_luminance_data)
         log_std_luminance = np.std(log_luminance_data)
-        normalized_log_luminance_data = (log_luminance_data - log_mean_luminance) / log_std_luminance
+        normalized_log_luminance_data = log_luminance_data - log_mean_luminance
+        if log_std_luminance > 1e-13:
+            normalized_log_luminance_data = normalized_log_luminance_data / log_std_luminance
         normalized_log_luminance_data = 0.2 * normalized_log_luminance_data
         normalized_luminance_data = np.exp(normalized_log_luminance_data) - 1.0
         normalized_luminance_data = normalized_luminance_data - np.mean(normalized_luminance_data)
-        normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
+        if np.std(normalized_luminance_data) > 1e-13:
+            normalized_luminance_data = normalized_luminance_data / np.std(normalized_luminance_data)
         data = std_luminance * normalized_luminance_data + mean_luminance
         # Prepare image data
         if np.count_nonzero(data < 0.0) > 0:
@@ -335,7 +338,7 @@ def generate(args):
     # Open .vec file.
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     # Open .csv file.
-    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_frame_nb', 'end_frame_nb'])
+    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_display_nb', 'end_display_nb'])
     # Add adaptation.
     bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
     for _ in range(0, nb_displays_during_adaptation):
@@ -345,12 +348,12 @@ def generate(args):
         repetition_sequence = repetition_sequences[repetition_nb]
         for condition_nb in repetition_sequence:
             # Add flash.
-            start_nb = vec_file.get_display_nb() + 1
+            start_display_nb = vec_file.get_display_nb() + 1
             bin_frame_nb = bin_frame_nbs[condition_nb]
             for _ in range(0, nb_displays_per_flash):
                 vec_file.append(bin_frame_nb)
-            end_nb = vec_file.get_display_nb()
-            csv_file.append(condition_nb=condition_nb, start_frame_nb=start_nb, end_frame_nb=end_nb)
+            end_display_nb = vec_file.get_display_nb()
+            csv_file.append(condition_nb=condition_nb, start_display_nb=start_display_nb, end_display_nb=end_display_nb)
             # Add inter flash.
             bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
             for _ in range(0, nb_displays_per_inter_flash):

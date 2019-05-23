@@ -16,8 +16,10 @@ name = 'euler'
 
 default_configuration = {
     'frame': {
-        'width': 3024.0,  # µm
-        'height': 3024.0,  # µm
+        # 'width': 3024.0,  # µm
+        'width': 2688.0,  # µm
+        # 'height': 3024.0,  # µm
+        'height': 2688.0,  # µm
         'rate': 50.0,  # Hz
     },
     'pattern': {
@@ -178,7 +180,7 @@ def generate(args):
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
     bin_path = os.path.join(path, bin_filename)
-    bin_file = open_bin_file(bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px)
+    bin_file = open_bin_file(bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px, mode='w')
     for k in range(0, nb_grey_levels):
         grey_level = float(k) / nb_grey_levels
         frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=grey_level)

@@ -1,6 +1,7 @@
 import collections
 import numpy as np
 import os
+import warnings
 
 
 def open_file(path, nb_displays):
@@ -15,16 +16,17 @@ def load_file(input_path):
     with open(input_path, mode='r') as input_file:
         lines = input_file.readlines()
 
-    nb_frames = int(lines[0].split()[1])
+    nb_displays = int(lines[0].split()[1])
 
-    frame_nbs = np.array([
+    display_nbs_sequence = np.array([
         int(line.split()[1])
         for line in lines[1:]
     ])
 
-    assert len(frame_nbs) == nb_frames, "{} {}".format(len(frame_nbs), nb_frames)
+    # Check if number of displays indicated in the header matches the real number of displays.
+    assert len(display_nbs_sequence) == nb_displays, "{} {}".format(len(display_nbs_sequence), nb_displays)
 
-    return frame_nbs
+    return display_nbs_sequence
 
 
 class VecFile:
@@ -81,6 +83,11 @@ class VecFile:
         return
 
     def close(self):
+
+        if not self.get_display_nb() == self._nb_displays - 1:
+            string = "number of displays indicated in the header ({}) doesn't match the actual number of displays ({})"
+            message = string.format(self._nb_displays, self.get_display_nb() + 1)
+            warnings.warn(message)
 
         self.flush()
         self._file.close()

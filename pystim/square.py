@@ -16,9 +16,13 @@ default_configuration = {
         'width': 3024.00,  # µm
         'height': 3024.00,  # µm
         'rate': 50.0,  # Hz
+        'resolution': 3.5e-6,  # m / pixel  # fixed by the setup
     },
+    # 'background_luminance': 0.5,
+    'background_luminance': 0.0,
     'size': float(16) * 30.0,  # µm
-    'duration': 2.0,  # s
+    # 'duration': 2.0,  # s
+    'duration': 20.0,  # s
     'nb_repetitions': 60,
     'path': os.path.join(tempfile.gettempdir(), 'pystim', name)
 }
@@ -31,12 +35,14 @@ def generate(args):
     frame_width_in_um = config['frame']['width']
     frame_height_in_um = config['frame']['height']
     frame_rate = config['frame']['rate']
+    frame_resolution = config['frame']['resolution']
+    background_luminance = config['background_luminance']
     size = config['size']
     duration = config['duration']
     nb_repetitions = config['nb_repetitions']
     path = config['path']
 
-    pixel_size = 3.5  # µm
+    pixel_size = frame_resolution * 1e+6  # µm
 
     # Check duration.
     assert (duration * frame_rate).is_integer()
@@ -57,11 +63,11 @@ def generate(args):
     i_min, i_max = i[0], i[-1]
     j_min, j_max = j[0], j[-1]
     # Create white frame.
-    white_frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=0.5)
+    white_frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=background_luminance)
     white_frame[j_min:j_max+1, i_min:i_max+1] = 1.0
     white_frame = float_frame_to_uint8_frame(white_frame)
     # Create black frame.
-    black_frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=0.5)
+    black_frame = get_grey_frame(frame_width_in_px, frame_height_in_px, luminance=background_luminance)
     black_frame[j_min:j_max+1, i_min:i_max+1] = 0.0
     black_frame = float_frame_to_uint8_frame(black_frame)
 
@@ -70,7 +76,9 @@ def generate(args):
     # Create .bin file.
     bin_filename = "{}.bin".format(name)
     bin_path = os.path.join(path, bin_filename)
-    bin_file = open_bin_file(bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px)
+    bin_file = open_bin_file(
+        bin_path, nb_images, frame_width=frame_width_in_px, frame_height=frame_height_in_px, mode='w'
+    )
     bin_file.append(black_frame)
     bin_file.append(white_frame)
     bin_file.close()

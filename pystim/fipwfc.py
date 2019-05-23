@@ -52,13 +52,16 @@ default_configuration = {
         # 'amplitudes': [float(a) / float(256) for a in [-30, -20, -15, -10, +10, +15, +20, +30]],
         # 'amplitudes': [-15.0, +15.0],
         # 'amplitudes': [-30.0, -20.0, -15.0, -10.0, +10.0, +15.0, +20.0, +30.0],
-        'amplitudes': [-22.5, -15.0, -7.5, +7.5, +15.0, +22.5],
+        # 'amplitudes': [-22.5, -15.0, -7.5, +7.5, +15.0, +22.5],  # last use: e20190417
+        'amplitudes': [-12.0, -8.0, -4.0, +4.0, +8.0, +12.0],  # first use: e20190523
         # 'resolution': 50.0,  # µm / pixel
         'resolution': float(15) * 3.5,  # µm / pixel
     },
     'eye_diameter': 1.2e-2,  # m
     # 'eye_diameter': 1.2e-2,  # m  # human
     # 'eye_diameter': 2.7e-3,  # m  # axolotl
+    'mean_luminance': 0.25,
+    'std_luminance': 0.05,
     'display_rate': 40.0,  # Hz
     'adaptation_duration': 60.0,  # s
     'flash_duration': 0.3,  # s
@@ -105,6 +108,8 @@ def generate(args):
     pattern_nbs = config['perturbations']['pattern_nbs']
     amplitude_values = config['perturbations']['amplitudes']
     eye_diameter = config['eye_diameter']
+    mean_luminance = config['mean_luminance']
+    std_luminance = config['std_luminance']
     display_rate = config['display_rate']
     adaptation_duration = config['adaptation_duration']
     flash_duration = config['flash_duration']
@@ -431,7 +436,7 @@ def generate(args):
     # Open .bin file.
     bin_file = open_bin_file(bin_path, nb_bin_images, frame_width=frame_width, frame_height=frame_height, reverse=False, mode='w')
     # Add grey frame.
-    grey_frame = get_grey_frame(frame_width, frame_height, luminance=0.5)
+    grey_frame = get_grey_frame(frame_width, frame_height, luminance=mean_luminance)
     grey_frame = float_frame_to_uint8_frame(grey_frame)
     bin_file.append(grey_frame)
     bin_frame_nbs[None] = bin_file.get_frame_nb()
@@ -461,7 +466,7 @@ def generate(args):
     # Open .vec file.
     vec_file = open_vec_file(vec_path, nb_displays=nb_displays)
     # Open .csv file.
-    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_frame_nb', 'end_frame_nb'])
+    csv_file = open_csv_file(csv_path, columns=['condition_nb', 'start_display_nb', 'end_display_nb'])
     # Add adaptation.
     bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
     for _ in range(0, nb_displays_during_adaptation):
@@ -471,12 +476,12 @@ def generate(args):
         condition_nbs = repetition_orderings[repetition_nb]
         for condition_nb in condition_nbs:
             # Add flash.
-            start_frame_nb = vec_file.get_display_nb() + 1
+            start_display_nb = vec_file.get_display_nb() + 1
             bin_frame_nb = bin_frame_nbs[condition_nb]
             for _ in range(0, nb_displays_per_flash):
                 vec_file.append(bin_frame_nb)
-            end_frame_nb = vec_file.get_display_nb()
-            csv_file.append(condition_nb=condition_nb, start_frame_nb=start_frame_nb, end_frame_nb=end_frame_nb)
+            end_display_nb = vec_file.get_display_nb()
+            csv_file.append(condition_nb=condition_nb, start_display_nb=start_display_nb, end_display_nb=end_display_nb)
             # Add inter flash.
             bin_frame_nb = bin_frame_nbs[None]  # i.e. default frame (grey)
             for _ in range(0, nb_displays_per_inter_flash):

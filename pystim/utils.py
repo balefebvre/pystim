@@ -18,6 +18,7 @@ def list_stimuli():
         'dg',
         'fi',
         'fi_comp',
+        'fi_merge',
         'fipwc',
         'fipwfc',
         'fipwrc',
