@@ -8,7 +8,7 @@ A Python 3.6 module to generate visual stimuli.
 1. Create and activate a virtual environment (Python 3.6).
 2. Run `pip install --editable .`.
 
-## Windows
+### Windows
 
 To install `pycairo`:
 1. Download the wheel [here](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pycairo) (i.e. Windows binary).

@@ -9,6 +9,7 @@ from pystim.utils import linspace, shape
 from pystim.utils import get_grey_frame
 from pystim.utils import float_frame_to_uint8_frame
 
+
 name = 'square'
 
 default_configuration = {

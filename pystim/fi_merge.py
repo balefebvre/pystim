@@ -25,7 +25,7 @@ default_configuration = {
     'stimuli': [
         'fipwfc',
         'fipwrc',
-        'fi',
+        # 'fi',  # TODO uncomment? (uncommented for pharmacology)
     ],
     'mean_luminance': 0.25,
     'display_rate': 40.0,  # Hz

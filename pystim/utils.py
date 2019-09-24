@@ -14,6 +14,7 @@ def list_stimuli():
     stimuli = [
         'test',
         'square',
+        'flashes',
         'euler',
         'dg',
         'fi',

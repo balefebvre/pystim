@@ -2,6 +2,7 @@ import argparse
 
 from pystim.test import generate as generate_test
 from pystim.square import generate as generate_square
+from pystim.flashes import generate as generate_flashes
 from pystim.euler import generate as generate_euler
 from pystim.dg import generate as generate_dg
 from pystim.fi import generate as generate_fi
@@ -65,6 +66,10 @@ def main():
     # Square.
     subparser_generate_square = subparsers_generate.add_parser('square', help='square help')
     subparser_generate_square.set_defaults(func=generate_square)
+
+    # Square.
+    subparser_generate_flashes = subparsers_generate.add_parser('flashes', help='flashes help')
+    subparser_generate_flashes.set_defaults(func=generate_flashes)
 
     # Euler's full-field.
     subparser_generate_euler = subparsers_generate.add_parser('euler', help='euler help')
