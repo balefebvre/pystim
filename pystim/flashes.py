@@ -25,8 +25,9 @@ default_configuration = {
         'duration': 2.0,  # s
         'inter-duration': 8.0,  # s
     },
-    'nb_repetitions': 10,  # test value
+    # 'nb_repetitions': 10,  # test value
     # 'nb_repetitions': 60,  # i.e. ~10 min (for drug application/recovery)
+    'nb_repetitions': 180,  # i.e. ~30 min (for drug application/recovery)
     'path': os.path.join(tempfile.gettempdir(), 'pystim', name)
 }
 
