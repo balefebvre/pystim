@@ -240,9 +240,11 @@ def generate(args):
         data = np.reshape(data, shape)
         data = data.transpose()
         # Create pattern image.
-        image_data = data
-        image_data = 254.0 * image_data
-        image_data = np.array(image_data, dtype=np.uint8)  # 0.0 -> 0 and 1.0 -> 254 such that 0.5 -> 127
+        image_data = data  # i.e. values in {-1/254, 0, +1/254}
+        image_data = 254.0 * image_data  # i.e. values in {-1, 0, +1}
+        image_data = 0.5 * image_data + 0.5  # i.e. values in {0, 0.5, 1}
+        image_data = 254.0 * image_data  # i.e. values in {0, 127, 254}
+        image_data = np.array(image_data, dtype=np.uint8)
         image_data = np.transpose(image_data)
         image_data = np.flipud(image_data)
         pattern = create_png_image(image_data)
