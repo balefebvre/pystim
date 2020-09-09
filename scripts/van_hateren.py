@@ -1,10 +1,13 @@
+import matplotlib.collections as mc
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import os
 import tqdm
 
 import pystim.datasets.van_hateren as vh
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 verbose = True
 
@@ -20,6 +23,97 @@ plt.close()
 image_nb = 1
 settings = vh.load_settings()
 print("image {} settings: {}".format(image_nb, settings[image_nb]))
+
+
+# TODO plot image (IML values)
+# image_nb = 46
+image_nb = 531
+data = vh.load_data(image_nb)
+data = np.transpose(data)
+data = np.flipud(data)
+height, width = data.shape
+fig, ax = plt.subplots()
+vmin, vmax = np.min(data), np.max(data)
+extent = left, right, bottom, top = 1 - 0.5, width + 0.5, height + 0.5, 1 - 0.5
+ai = ax.imshow(data, cmap='gray', vmin=vmin, vmax=vmax, extent=extent)
+div = make_axes_locatable(ax)
+cax = div.append_axes("right", size="3%", pad=0.05)
+cb = fig.colorbar(ai, cax=cax)
+ax.xaxis.set_major_locator(ticker.FixedLocator([1, width]))
+ax.yaxis.set_major_locator(ticker.FixedLocator([1, height]))
+cax.yaxis.set_major_locator(ticker.FixedLocator([vmin, vmax]))
+ax.set_xlabel("x (px)")
+ax.set_ylabel("y (px)")
+cb.set_label("intensity")
+fig.tight_layout()
+
+
+# TODO determine unique image values (IML values)
+# image_nb = 3119
+# image_nb = 5
+# image_nb = 31
+image_nb = 46
+data = vh.load_data(image_nb)
+data = np.transpose(data)
+data = np.flipud(data)
+data = data[2:-2, 2:-2]  # i.e. remove borders (recommended)
+unique_values = np.unique(data)
+nb_unique_values = len(unique_values)
+print("nb_unique_values: {}".format(nb_unique_values))
+assert nb_unique_values < 2 ** 8, nb_unique_values
+
+
+# TODO check the number of unique values for all the images
+image_nbs = vh.get_image_nbs()
+nbs_values = vh.get_nbs_values(verbose=True)
+for image_nb, nb_values in zip(image_nbs, nbs_values):
+    if nb_values >= 2 ** 8:
+        print("image {} has {} unique values".format(image_nb, nb_values))
+
+
+# The images should have 2**8 unique values at most (i.e. 8 bit depth).
+# However, the images 531 to 612 have more than 2 ** 8 unique values. Probably because the conversion from 12-bit to
+# 8-bit (done by Van Hateren) has gone wrong for these images.
+
+
+# TODO plot image histogram (IML values)
+# image_nb = 46
+image_nb = 531
+data = vh.load_data(image_nb)
+data = np.transpose(data)
+data = np.flipud(data)
+data = data[2:-2, 2:-2]
+unique_values, unique_counts = np.unique(data, return_counts=True)
+fig, axes = plt.subplots(ncols=2, squeeze=False)
+ax = axes[0, 0]
+#
+# ax.bar(unique_values, unique_counts, width=1.0, bottom=0, align='center')
+#
+# ax.scatter(unique_values, unique_counts)
+#
+# lc = mc.LineCollection([
+#     [(value, 0), (value, count)]
+#     for value, count in zip(unique_values, unique_counts)
+# ])
+# ax.add_collection(lc)
+# ax.autoscale()
+# ax.margins(0.1)
+#
+unique_levels = np.arange(0, len(unique_counts)) + 1
+ax.bar(unique_levels, unique_counts, width=1.0, bottom=0, align='center', color='black')
+#
+# ax.xaxis.set_major_locator(ticker.FixedLocator([np.min(unique_values), np.max(unique_values)]))
+ax.xaxis.set_major_locator(ticker.FixedLocator([1, len(unique_counts)]))
+ax.set_xlabel("level")
+ax.set_ylabel("number of pixels")
+ax = axes[0, 1]
+ax.step(unique_levels, unique_values, color='black')
+ax.set_xlabel("level")
+ax.set_ylabel("intensity")
+fig.tight_layout()
+
+
+# TODO plot image (luminance values)
 
 
 # # Plot image.
@@ -187,14 +281,17 @@ are_not_saturated = np.logical_not(are_saturated)
 not_saturated_image_nbs = image_nbs[are_not_saturated]
 mean_luminances = vh.get_mean_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 std_luminances = vh.get_std_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
+min_luminances = vh.get_min_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 max_luminances = vh.get_max_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 max_centered_luminances = (max_luminances / mean_luminances - 1.0) / std_luminances + 1.0
 # max_normalized_luminances = (max_luminances - mean_luminances) / std_luminances
 log_mean_luminances = vh.get_log_mean_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
 log_std_luminances = vh.get_log_std_luminances(image_nbs=not_saturated_image_nbs, verbose=True)
+log_min_luminances = np.log(1.0 + min_luminances)
 log_max_luminances = np.log(1.0 + max_luminances)
 # max_normalized_luminances = np.exp((log_max_luminances - log_mean_luminances) / log_std_luminances) - 1.0
 max_normalized_luminances = (log_max_luminances - log_mean_luminances) / log_std_luminances
+min_normalized_luminances = (log_min_luminances - log_mean_luminances) / log_std_luminances
 # selection = max_luminances < 18018.0
 # not_saturated_image_nbs = not_saturated_image_nbs[selection]
 # max_luminances = max_luminances[selection]
@@ -202,24 +299,31 @@ _, ax = plt.subplots()
 ax.hist(100.0 * max_luminances, bins=200)
 ax.set_xlabel("max. lum. (cd/m²)")
 ax.set_ylabel("nb. images")
-_, ax = plt.subplots(nrows=3)
+fig, ax = plt.subplots(nrows=4)
 # ...
 ml_indices = np.argsort(max_luminances)
 mcl_indices = np.argsort(max_centered_luminances)
 mnl_indices = np.argsort(max_normalized_luminances)
+mnl_indices_ = np.argsort(min_normalized_luminances)
 # ...
 max_luminances_sorted = max_luminances[ml_indices]
 max_centered_luminances_sorted = max_centered_luminances[mcl_indices]
 max_normalized_luminances_sorted = max_normalized_luminances[mnl_indices]
+min_normalized_luminances_sorted = min_normalized_luminances[mnl_indices_]
 ax[0].plot(max_luminances_sorted, marker='.', color='tab:blue')
 ax[0].set_xlabel("image nb. (sorted by max. lum.)")
 ax[0].set_ylabel("max. lum. (cd/m²)")
-ax[1].plot(max_centered_luminances_sorted, marker='.', color='tab:red')
+ax[1].plot(max_centered_luminances_sorted, marker='.', color='tab:orange')
 ax[1].set_xlabel("image nb. (sorted by max. cen. lum.)")
 ax[1].set_ylabel("max. cen. lum. (cd/m²)")
 ax[2].plot(max_normalized_luminances_sorted, marker='.', color='tab:green')
+ax[2].axhline(y=5.0, color='grey', linewidth=0.3)
 ax[2].set_xlabel("image nb. (sorted by max. nor. lum.)")
 ax[2].set_ylabel("max. nor. lum.")
+ax[3].plot(min_normalized_luminances_sorted, marker='.', color='tab:red')
+ax[3].set_xlabel("image nb. (sorted by min. nor. lum.)")
+ax[3].set_ylabel("min. nor. lum.")
+fig.tight_layout()
 
 
 # Plot image with min., median and max. luminance.
@@ -240,25 +344,25 @@ ax.set_title("van Hateren {}".format(image_nb))
 # fig.tight_layout()
 
 
-# Plot histogram of generated image.
-# image_name = 'image_0001'
-# image_name = 'image_0694'
-image_name = 'image_1_image'
-image_path = '/tmp/pystim/fipwfc/images/{}.png'.format(image_name)
-from pystim.images.png import load as load_png
-image = load_png(image_path)
-data = image.data
-fig, ax = plt.subplots()
-im = ax.imshow(data, cmap='gray', vmin=0, vmax=255)
-fig.colorbar(im, label='grey value', fraction=0.146, pad=0.04)
-ax.set_xlabel("x (px)")
-ax.set_ylabel("y (px)")
-ax.set_title(image_name)
-fig, ax = plt.subplots()
-ax.hist(np.ravel(image.data), bins=255, range=(0, 255), color='black')
-ax.set_xlabel('grey value')
-ax.set_ylabel('nb. pixels')
-ax.set_title(image_name)
+# # Plot histogram of generated image.
+# # image_name = 'image_0001'
+# # image_name = 'image_0694'
+# image_name = 'image_1_image'
+# image_path = '/tmp/pystim/fipwfc/images/{}.png'.format(image_name)
+# from pystim.images.png import load as load_png
+# image = load_png(image_path)
+# data = image.data
+# fig, ax = plt.subplots()
+# im = ax.imshow(data, cmap='gray', vmin=0, vmax=255)
+# fig.colorbar(im, label='grey value', fraction=0.146, pad=0.04)
+# ax.set_xlabel("x (px)")
+# ax.set_ylabel("y (px)")
+# ax.set_title(image_name)
+# fig, ax = plt.subplots()
+# ax.hist(np.ravel(image.data), bins=255, range=(0, 255), color='black')
+# ax.set_xlabel('grey value')
+# ax.set_ylabel('nb. pixels')
+# ax.set_title(image_name)
 
 
 # TODO remove a two pixel wide border all around the images.

@@ -599,6 +599,23 @@ def get_max_value(image_nb, format_='iml'):
 get_max_values = repeat_for_each_image(get_max_value)
 
 
+@ImageMetadata.cache('nb_values')
+def get_nb_values(image_nb, format_='iml'):
+
+    image = load_raw_image(image_nb, format_=format_)
+    height, width = image.shape
+    assert height < width, (height, width)
+    data = image.data
+    data = data[2:-2, 2:-2]  # i.e. remove borders (recommended)
+    unique_values = np.unique(data)
+    nb_values = len(unique_values)
+
+    return nb_values
+
+
+get_nbs_values = repeat_for_each_image(get_nb_values)
+
+
 @ImageMetadata.cache('min_luminance')
 def get_min_luminance(image_nb, format_='iml'):
 

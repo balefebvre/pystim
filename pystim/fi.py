@@ -126,8 +126,16 @@ def generate(args):
     log_max_luminances = np.log(1.0 + max_luminances)
     log_max_normalized_luminances = (log_max_luminances - log_mean_luminances) / log_std_luminances
     are_good = log_max_normalized_luminances <= 5.0
+    # # TODO remove the following lines?
+    # log_mean_luminances = vh.get_log_mean_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    # log_std_luminances = vh.get_log_std_luminances(image_nbs=unsaturated_vh_image_nbs, verbose=verbose)
+    # log_max_luminances = np.log(1.0 + max_luminances)
+    # log_max_normalized_luminances = (log_max_luminances - log_mean_luminances) / log_std_luminances
+    # are_good = log_max_normalized_luminances <= 5.0
     # ...
     good_vh_image_nbs = unsaturated_vh_image_nbs[are_good]
+    bad_vh_images_nbs = unsaturated_vh_image_nbs[~are_good]
+    print("bad_vh_images_nbs: {}".format(bad_vh_images_nbs)) if len(bad_vh_images_nbs) > 0 else None
     # ...
     # selected_vh_image_nbs = unsaturated_vh_image_nbs
     selected_vh_image_nbs = good_vh_image_nbs
